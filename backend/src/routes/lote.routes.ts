@@ -127,7 +127,7 @@ router.post('/', async (req, res) => {
       humedad_almacenamiento: humedad_almacenamiento || null,
       observaciones: observaciones || null,
       certificado_calidad: certificado_calidad || null,
-      usuario_id: usuario_id || 1,
+      usuario_id: (req as any).user?.id || usuario_id || 1,
     } as any);
 
     res.status(201).json(lote);

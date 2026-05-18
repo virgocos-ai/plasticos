@@ -20,6 +20,7 @@ import Cotizaciones from './pages/Cotizaciones'
 import OrdenesCompra from './pages/OrdenesCompra'
 import Calidad from './pages/Calidad'
 import Usuarios from './pages/Usuarios'
+import OrdenProduccionDetalle from './pages/OrdenProduccionDetalle'
 import Login from './pages/Login'
 import { useAuthStore } from './store/authStore'
 
@@ -48,6 +49,7 @@ function App() {
           <Route path="productos" element={<Productos />} />
           <Route path="materiales" element={<Materiales />} />
           <Route path="ordenes-produccion" element={<OrdenesProduccion />} />
+          <Route path="ordenes-produccion/:id" element={<OrdenProduccionDetalle />} />
           <Route path="facturas" element={<Facturas />} />
           <Route path="inventario" element={<Inventario />} />
           <Route path="reportes" element={<Reportes />} />

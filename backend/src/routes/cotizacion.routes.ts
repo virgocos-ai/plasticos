@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { Cotizacion, CotizacionDetalle, Cliente, Producto, Material } from '../models';
+import { Cotizacion, CotizacionDetalle, Cliente, Producto, Material, OrdenProduccion, OrdenProduccionDetalle } from '../models';
 import sequelize from '../config/database';
 
 const router = Router();
@@ -192,27 +192,78 @@ router.put('/:id/estado', async (req, res) => {
 
 // Convertir cotización a orden de producción
 router.post('/:id/convertir', async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const cotizacion = await Cotizacion.findByPk(req.params.id, {
       include: [{ model: CotizacionDetalle, as: 'detalles' }]
     });
     
     if (!cotizacion) {
+      await transaction.rollback();
       return res.status(404).json({ error: 'Cotización no encontrada' });
     }
-    
-    await cotizacion.update({
-      estado: 'convertida',
-      fecha_conversion: new Date()
+
+    if (cotizacion.estado === 'convertida') {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Esta cotización ya fue convertida' });
+    }
+
+    // Generar folio para la orden de producción
+    const fecha = new Date();
+    const anio = fecha.getFullYear().toString().substr(-2);
+    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+    const prefix = `OP${anio}${mes}`;
+    const ultimaOrden = await OrdenProduccion.findOne({
+      where: { folio: { [Op.like]: `${prefix}%` } },
+      order: [['folio', 'DESC']]
     });
-    
-    // Aquí se crearía la orden de producción
-    // Por ahora retornamos la cotización actualizada
-    res.json({
-      message: 'Cotización convertida correctamente',
-      cotizacion
+    const consecutivo = ultimaOrden ? parseInt(ultimaOrden.folio.slice(-4)) + 1 : 1;
+    const folio = `${prefix}${consecutivo.toString().padStart(4, '0')}`;
+
+    // Crear orden de producción
+    const { fecha_entrega, maquina_asignada, turno, observaciones } = req.body;
+    const usuario_id = (req as any).user?.id || 1;
+
+    const orden = await OrdenProduccion.create({
+      folio,
+      cliente_id: cotizacion.cliente_id,
+      cotizacion_id: cotizacion.id,
+      fecha_entrega: fecha_entrega || null,
+      maquina_asignada: maquina_asignada || null,
+      turno: turno || 'matutino',
+      estado: 'pendiente',
+      prioridad: 'normal',
+      observaciones: observaciones || `Generada desde cotización ${cotizacion.folio}`,
+      usuario_id
+    } as any, { transaction });
+
+    // Crear detalles de la orden desde los detalles de la cotización
+    const detalles = (cotizacion as any).detalles || [];
+    if (detalles.length > 0) {
+      await OrdenProduccionDetalle.bulkCreate(
+        detalles.map((det: any) => ({
+          orden_id: orden.id,
+          producto_id: det.producto_id,
+          material_id: det.material_id || null,
+          cantidad_solicitada: det.cantidad,
+          cantidad_producida: 0,
+          cantidad_defectuosa: 0
+        })),
+        { transaction }
+      );
+    }
+
+    // Marcar cotización como convertida
+    await cotizacion.update({ estado: 'convertida' }, { transaction });
+
+    await transaction.commit();
+    res.status(201).json({
+      message: `Orden de producción ${folio} creada correctamente`,
+      orden_folio: folio,
+      orden_id: orden.id
     });
   } catch (error) {
+    await transaction.rollback();
     console.error('Error al convertir cotización:', error);
     res.status(500).json({ error: 'Error al convertir cotización' });
   }

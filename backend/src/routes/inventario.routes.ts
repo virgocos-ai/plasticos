@@ -80,7 +80,8 @@ router.post('/movimientos', async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
-    const { tipo, producto_id, material_id, cantidad, motivo, usuario_id } = req.body;
+    const { tipo, producto_id, material_id, cantidad, motivo } = req.body;
+    const usuario_id = (req as any).user?.id || 1;
     
     // Crear movimiento
     const movimiento = await InventarioMovimiento.create({

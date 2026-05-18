@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Edit2, Trash2, Send, CheckCircle, XCircle, FileText, RefreshCw } from 'lucide-react'
+import { Plus, Search, Trash2, Send, CheckCircle, XCircle, RefreshCw, Eye } from 'lucide-react'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
@@ -29,12 +29,20 @@ interface Producto {
   precio_venta: number
 }
 
+interface Maquina { id: number; nombre: string; modelo: string }
+
 export default function Cotizaciones() {
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
+  const [maquinas, setMaquinas] = useState<Maquina[]>([])
+  const [showConvertModal, setShowConvertModal] = useState(false)
+  const [convertId, setConvertId] = useState<number | null>(null)
+  const [convertFolio, setConvertFolio] = useState('')
+  const [convertForm, setConvertForm] = useState({ fecha_entrega: '', maquina_asignada: '', turno: 'matutino', observaciones: '' })
+  const [converting, setConverting] = useState(false)
   const [detalles, setDetalles] = useState<any[]>([{ producto_id: '', cantidad: 1, precio_unitario: 0, descuento: 0 }])
   const [formData, setFormData] = useState({
     cliente_id: '',
@@ -53,6 +61,7 @@ export default function Cotizaciones() {
     loadCotizaciones()
     loadClientes()
     loadProductos()
+    loadMaquinas()
   }, [])
 
   const loadCotizaciones = async () => {
@@ -79,6 +88,15 @@ export default function Cotizaciones() {
       setProductos(response.data)
     } catch (error) {
       console.error('Error al cargar productos')
+    }
+  }
+
+  const loadMaquinas = async () => {
+    try {
+      const response = await api.get('/maquinas')
+      setMaquinas(response.data)
+    } catch (error) {
+      console.error('Error al cargar máquinas')
     }
   }
 
@@ -149,14 +167,36 @@ export default function Cotizaciones() {
     }
   }
 
-  const handleConvertir = async (id: number) => {
-    if (!confirm('¿Convertir esta cotización en orden de producción?')) return
+  const handleConvertir = (id: number, folio: string) => {
+    setConvertId(id)
+    setConvertFolio(folio)
+    setConvertForm({ fecha_entrega: '', maquina_asignada: '', turno: 'matutino', observaciones: '' })
+    setShowConvertModal(true)
+  }
+
+  const handleDoConvertir = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!convertId) return
+    setConverting(true)
     try {
-      await api.post(`/cotizaciones/${id}/convertir`)
-      toast.success('Cotización convertida')
+      const res = await api.post(`/cotizaciones/${convertId}/convertir`, convertForm)
+      toast.success(res.data.message || 'Orden de producción creada')
+      setShowConvertModal(false)
+      setConvertId(null)
       loadCotizaciones()
-    } catch (error) {
-      toast.error('Error al convertir')
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Error al convertir')
+    } finally { setConverting(false) }
+  }
+
+  const handleEliminar = async (id: number) => {
+    if (!confirm('¿Eliminar esta cotización?')) return
+    try {
+      await api.delete(`/cotizaciones/${id}`)
+      toast.success('Cotización eliminada')
+      loadCotizaciones()
+    } catch {
+      toast.error('Error al eliminar')
     }
   }
 
@@ -230,26 +270,82 @@ export default function Cotizaciones() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">{getEstadoBadge(cotizacion.estado)}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <button className="text-blue-600 hover:text-blue-900 mr-2" title="Ver"><FileText className="h-4 w-4" /></button>
-                  {cotizacion.estado === 'borrador' && (
-                    <button onClick={() => handleCambiarEstado(cotizacion.id, 'enviada')} className="text-blue-600 hover:text-blue-900 mr-2" title="Enviar"><Send className="h-4 w-4" /></button>
-                  )}
-                  {cotizacion.estado === 'enviada' && (
-                    <>
-                      <button onClick={() => handleCambiarEstado(cotizacion.id, 'aceptada')} className="text-green-600 hover:text-green-900 mr-2" title="Aceptar"><CheckCircle className="h-4 w-4" /></button>
-                      <button onClick={() => handleCambiarEstado(cotizacion.id, 'rechazada')} className="text-red-600 hover:text-red-900 mr-2" title="Rechazar"><XCircle className="h-4 w-4" /></button>
-                    </>
-                  )}
-                  {cotizacion.estado === 'aceptada' && (
-                    <button onClick={() => handleConvertir(cotizacion.id)} className="text-purple-600 hover:text-purple-900 mr-2" title="Convertir a OP"><RefreshCw className="h-4 w-4" /></button>
-                  )}
-                  <button className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button>
+                  <div className="flex items-center gap-1">
+                    <button className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded" title="Ver detalle">
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    {cotizacion.estado === 'borrador' && (
+                      <button onClick={() => handleCambiarEstado(cotizacion.id, 'enviada')} className="p-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded" title="Enviar"><Send className="h-4 w-4" /></button>
+                    )}
+                    {cotizacion.estado === 'enviada' && (
+                      <>
+                        <button onClick={() => handleCambiarEstado(cotizacion.id, 'aceptada')} className="p-1 text-green-600 hover:text-green-900 hover:bg-green-50 rounded" title="Aceptar"><CheckCircle className="h-4 w-4" /></button>
+                        <button onClick={() => handleCambiarEstado(cotizacion.id, 'rechazada')} className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded" title="Rechazar"><XCircle className="h-4 w-4" /></button>
+                      </>
+                    )}
+                    {cotizacion.estado === 'aceptada' && (
+                      <button onClick={() => handleConvertir(cotizacion.id, cotizacion.folio)} className="p-1 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded" title="Convertir a Orden de Producción"><RefreshCw className="h-4 w-4" /></button>
+                    )}
+                    {cotizacion.estado !== 'convertida' && (
+                      <button onClick={() => handleEliminar(cotizacion.id)} className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Modal Convertir a Orden de Producción */}
+      <Modal isOpen={showConvertModal} onClose={() => setShowConvertModal(false)} title={`Convertir ${convertFolio} a Orden de Producción`} size="md">
+        <form onSubmit={handleDoConvertir} className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Se creará una Orden de Producción a partir de los productos de esta cotización.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Entrega</label>
+            <input type="date" className="block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+              value={convertForm.fecha_entrega}
+              onChange={e => setConvertForm({ ...convertForm, fecha_entrega: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Máquina Asignada</label>
+            <select className="block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+              value={convertForm.maquina_asignada}
+              onChange={e => setConvertForm({ ...convertForm, maquina_asignada: e.target.value })}>
+              <option value="">Sin asignar</option>
+              {maquinas.map(m => <option key={m.id} value={m.nombre}>{m.nombre} — {m.modelo}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Turno</label>
+            <select className="block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+              value={convertForm.turno}
+              onChange={e => setConvertForm({ ...convertForm, turno: e.target.value })}>
+              <option value="matutino">Matutino</option>
+              <option value="vespertino">Vespertino</option>
+              <option value="nocturno">Nocturno</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea rows={2} className="block w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+              value={convertForm.observaciones}
+              onChange={e => setConvertForm({ ...convertForm, observaciones: e.target.value })}
+              placeholder="Instrucciones adicionales..." />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setShowConvertModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Cancelar</button>
+            <button type="submit" disabled={converting}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
+              {converting && <RefreshCw className="h-3 w-3 animate-spin" />}
+              Crear Orden de Producción
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Nueva Cotización" size="xl">
         <form onSubmit={handleSubmit} className="space-y-4">

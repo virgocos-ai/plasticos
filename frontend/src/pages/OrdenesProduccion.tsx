@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Factory, CheckCircle, Clock, Edit, ChevronRight, X, PlayCircle, XCircle } from 'lucide-react'
+import { Plus, Search, Factory, CheckCircle, Clock, Edit, ChevronRight, X, PlayCircle, XCircle, Eye } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 
@@ -55,6 +56,7 @@ export default function OrdenesProduccion() {
   const [filterEstado, setFilterEstado] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<OrdenForm>(emptyForm())
+  const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
@@ -225,6 +227,13 @@ export default function OrdenesProduccion() {
                 <td className="px-4 py-3 whitespace-nowrap">{getEstadoBadge(orden.estado)}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-center">
                   <div className="flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => navigate(`/ordenes-produccion/${orden.id}`)}
+                      title="Ver detalle"
+                      className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
                     {orden.estado === 'pendiente' && (
                       <button
                         onClick={() => handleCambiarEstado(orden.id, 'en_produccion')}
