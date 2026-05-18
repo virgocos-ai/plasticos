@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Plasticos ERP - Abrir Sistema</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 { 
+            color: #333; 
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .btn { 
+            display: inline-block; 
+            padding: 15px 40px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; 
+            text-decoration: none; 
+            border-radius: 50px; 
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: transform 0.2s;
+        }
+        .btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        .info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .info-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .info-item strong {
+            display: inline-block;
+            width: 100px;
+            color: #333;
+        }
+        .status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Plasticos ERP</h1>
+        <p class="subtitle">Sistema de Gestión para Inyección de Plástico</p>
+        
+        <a href="http://localhost:5173" class="btn">ABRIR SISTEMA</a>
+        
+        <div class="info">
+            <div class="info-item">
+                <span class="status"></span>
+                <strong>URL:</strong> http://localhost:5173
+            </div>
+            <div class="info-item">
+                <span class="status"></span>
+                <strong>Usuario:</strong> admin@plasticos.com
+            </div>
+            <div class="info-item">
+                <span class="status"></span>
+                <strong>Password:</strong> admin123
+            </div>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Si no abre:</strong><br>
+            1. Asegúrate de que XAMPP esté corriendo (Apache + MySQL)<br>
+            2. Verifica que las ventanas de Node.js estén abiertas<br>
+            3. Copia la URL y pégala manualmente en tu navegador
+        </div>
+    </div>
+</body>
+</html>

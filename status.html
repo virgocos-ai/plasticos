@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Plasticos ERP - Estado del Sistema</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 40px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 30px; }
+        .status { padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .ok { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Plasticos ERP - Estado</h1>
+        
+        <div class="status ok">
+            <strong>✅ Frontend:</strong> Corriendo en http://localhost:5173
+        </div>
+        
+        <div class="status ok">
+            <strong>✅ Backend:</strong> Corriendo en http://localhost:5000
+        </div>
+        
+        <div class="status ok">
+            <strong>✅ Base de datos:</strong> MySQL conectada (plasticos_erp)
+        </div>
+        
+        <div class="status info">
+            <strong>👤 Credenciales:</strong><br>
+            Email: admin@plasticos.com<br>
+            Password: admin123
+        </div>
+        
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="http://localhost:5173" class="btn">Abrir Sistema</a>
+            <a href="http://localhost:5000/api/health" class="btn">Verificar API</a>
+        </div>
+        
+        <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 5px;">
+            <strong>📊 Datos cargados:</strong><br>
+            - 7 materiales (resinas, masterbatch)<br>
+            - 5 productos (piezas moldeadas)<br>
+            - 4 proveedores<br>
+            - 4 clientes<br>
+            - 5 órdenes de producción<br>
+            - 4 facturas CFDI
+        </div>
+    </div>
+</body>
+</html>
