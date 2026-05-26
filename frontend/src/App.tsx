@@ -21,7 +21,9 @@ import OrdenesCompra from './pages/OrdenesCompra'
 import Calidad from './pages/Calidad'
 import Usuarios from './pages/Usuarios'
 import OrdenProduccionDetalle from './pages/OrdenProduccionDetalle'
+import Gantt from './pages/Gantt'
 import Login from './pages/Login'
+import NotFound from './pages/NotFound'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +52,7 @@ function App() {
           <Route path="materiales" element={<Materiales />} />
           <Route path="ordenes-produccion" element={<OrdenesProduccion />} />
           <Route path="ordenes-produccion/:id" element={<OrdenProduccionDetalle />} />
+          <Route path="gantt" element={<Gantt />} />
           <Route path="facturas" element={<Facturas />} />
           <Route path="inventario" element={<Inventario />} />
           <Route path="reportes" element={<Reportes />} />
@@ -63,7 +66,9 @@ function App() {
           <Route path="ordenes-compra" element={<OrdenesCompra />} />
           <Route path="calidad" element={<Calidad />} />
           <Route path="usuarios" element={<Usuarios />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   )

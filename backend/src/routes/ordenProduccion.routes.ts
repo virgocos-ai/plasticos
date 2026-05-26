@@ -1,30 +1,43 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { OrdenProduccion, OrdenProduccionDetalle, Cliente, Producto, Material, Usuario } from '../models';
+import { OrdenProduccion, OrdenProduccionDetalle, Cliente, Producto, Material, Usuario, Maquina, Operador } from '../models';
 
 const router = Router();
 
-// Listar órdenes de producción
+// Listar órdenes de producción (con paginación y búsqueda)
 router.get('/', async (req, res) => {
   try {
-    const { estado, fecha_inicio, fecha_fin } = req.query;
+    const { estado, fecha_inicio, fecha_fin, search, page, limit } = req.query;
     const where: any = {};
-    
+
     if (estado) where.estado = estado;
     if (fecha_inicio && fecha_fin) {
       where.fecha_orden = { [Op.between]: [fecha_inicio, fecha_fin] };
     }
+    if (search) {
+      where.folio = { [Op.like]: `%${search}%` };
+    }
 
-    const ordenes = await OrdenProduccion.findAll({
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
+
+    const { count, rows: ordenes } = await OrdenProduccion.findAndCountAll({
       where,
       include: [
-        { model: Cliente, as: 'cliente', required: false, attributes: ['razon_social'] },
-        { model: Usuario, as: 'usuario', attributes: ['nombre'] }
+        { model: Cliente, as: 'cliente', required: !!search ? false : false,
+          ...(search ? { where: { razon_social: { [Op.like]: `%${search}%` } }, required: false } : {})
+        },
+        { model: Usuario, as: 'usuario', required: false, attributes: ['id', 'nombre'] },
+        { model: Maquina, as: 'maquina', required: false, attributes: ['id', 'nombre', 'modelo'] },
+        { model: Operador, as: 'operador', required: false, attributes: ['id', 'nombre'] },
       ],
-      order: [['fecha_orden', 'DESC']]
+      order: [['fecha_orden', 'DESC']],
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+      distinct: true
     });
-    
-    res.json(ordenes);
+
+    res.json({ data: ordenes, total: count, page: pageNum, limit: limitNum, totalPages: Math.ceil(count / limitNum) });
   } catch (error) {
     console.error('Error al obtener órdenes:', error);
     res.status(500).json({ error: 'Error al obtener órdenes de producción' });
@@ -62,41 +75,54 @@ router.get('/:id', async (req, res) => {
 
 // Crear orden de producción
 router.post('/', async (req, res) => {
+  const transaction = await (await import('../config/database')).default.transaction();
   try {
     const { detalles, ...ordenData } = req.body;
-    
-    // Generar folio
+
+    if (!detalles || detalles.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Debe incluir al menos un producto en los detalles' });
+    }
+
+    // Generar folio de forma atómica dentro de la transacción
     const fecha = new Date();
     const anio = fecha.getFullYear().toString().substr(-2);
     const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
     const prefix = `OP${anio}${mes}`;
-    
+
     const ultimaOrden = await OrdenProduccion.findOne({
       where: { folio: { [Op.like]: `${prefix}%` } },
-      order: [['folio', 'DESC']]
+      order: [['folio', 'DESC']],
+      lock: transaction.LOCK.UPDATE,
+      transaction
     });
-    
-    const consecutivo = ultimaOrden 
-      ? parseInt(ultimaOrden.folio.slice(-4)) + 1 
+
+    const consecutivo = ultimaOrden
+      ? parseInt(ultimaOrden.folio.slice(-4)) + 1
       : 1;
     const folio = `${prefix}${consecutivo.toString().padStart(4, '0')}`;
-    
+
     const orden = await OrdenProduccion.create({
       ...ordenData,
       folio,
-      estado: 'pendiente'
-    });
-    
-    // Crear detalles
+      estado: 'pendiente',
+      fecha_orden: ordenData.fecha_orden || new Date(),
+      usuario_id: (req as any).user?.id || ordenData.usuario_id
+    }, { transaction });
+
+    // Crear detalles dentro de la misma transacción
     await OrdenProduccionDetalle.bulkCreate(
       detalles.map((det: any) => ({
         ...det,
         orden_id: orden.id
-      }))
+      })),
+      { transaction }
     );
-    
+
+    await transaction.commit();
     res.status(201).json(orden);
   } catch (error) {
+    await transaction.rollback();
     console.error('Error al crear orden:', error);
     res.status(500).json({ error: 'Error al crear orden de producción' });
   }

@@ -30,15 +30,33 @@ import cotizacionRoutes from './routes/cotizacion.routes';
 import ordenCompraRoutes from './routes/ordenCompra.routes';
 import calidadRoutes from './routes/calidad.routes';
 import usuarioRoutes from './routes/usuario.routes';
+import ganttRoutes from './routes/gantt.routes';
 
 dotenv.config();
+
+// Validar variables de entorno críticas al arrancar
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === 'secret') {
+  const msg = !JWT_SECRET
+    ? 'JWT_SECRET no está configurado en .env — el servidor no puede arrancar de forma segura.'
+    : 'JWT_SECRET tiene el valor por defecto ("secret") — configura un valor seguro en .env.';
+  console.error(`[CRITICAL] ${msg}`);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  } else {
+    console.warn('[WARN] Continuando en modo desarrollo con JWT_SECRET inseguro.');
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware de seguridad
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -71,7 +89,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rutas públicas
+// Rutas públicas (solo login y refresh — register queda protegido abajo)
 app.use('/api/auth', authRoutes);
 app.use('/api/catalogos', catalogoRoutes);
 
@@ -99,6 +117,7 @@ app.use('/api/cotizaciones', verifyToken, cotizacionRoutes);
 app.use('/api/ordenes-compra', verifyToken, requireRole('admin', 'almacen'), ordenCompraRoutes);
 app.use('/api/calidad', verifyToken, calidadRoutes);
 app.use('/api/usuarios', verifyToken, requireRole('admin'), usuarioRoutes);
+app.use('/api/gantt', verifyToken, ganttRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -133,7 +152,7 @@ const startServer = async () => {
     
     // Sincronizar modelos (en desarrollo) - sync() sin alter para evitar errores de FK en MySQL
     if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync();
+      await sequelize.sync({ alter: true });
       logger.info('Modelos sincronizados.');
     }
     

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Usuario } from '../models';
 import logger from '../utils/logger';
+import { verifyToken, requireRole } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -107,7 +108,7 @@ router.post('/login', async (req, res) => {
  *       400:
  *         description: Datos inválidos o email duplicado
  */
-router.post('/register', async (req, res) => {
+router.post('/register', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const { nombre, email, password, rol = 'operador' } = req.body;
 
@@ -139,6 +140,34 @@ router.post('/register', async (req, res) => {
   } catch (error) {
     logger.error('Error al crear usuario', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear usuario' });
+  }
+});
+
+router.post('/refresh', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token requerido' });
+    }
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret', { ignoreExpiration: true }) as any;
+
+    const usuario = await Usuario.findOne({ where: { id: decoded.id, activo: true } });
+    if (!usuario) return res.status(401).json({ error: 'Usuario no encontrado o inactivo' });
+
+    const newToken = jwt.sign(
+      { id: usuario.id, email: usuario.email, rol: usuario.rol, nombre: usuario.nombre },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as jwt.SignOptions['expiresIn'] }
+    );
+
+    res.json({
+      token: newToken,
+      usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol }
+    });
+  } catch (error) {
+    logger.error('Error en refresh token', { error: (error as Error).message });
+    res.status(401).json({ error: 'Token inválido' });
   }
 });
 

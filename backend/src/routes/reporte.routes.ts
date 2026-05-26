@@ -8,27 +8,26 @@ const router = Router();
 router.get('/dashboard', async (req, res) => {
   try {
     const { fecha_inicio, fecha_fin } = req.query;
-    const whereFecha = fecha_inicio && fecha_fin 
-      ? `AND fecha_emision BETWEEN '${fecha_inicio}' AND '${fecha_fin}'`
-      : '';
 
-    const queries = await Promise.all([
-      // Ventas totales
+    // Build ventas query with optional date range
+    let ventasQuery: string;
+    let ventasReplacements: any;
+    if (fecha_inicio && fecha_fin) {
+      ventasQuery = `SELECT COALESCE(SUM(total), 0) as ventas_totales, COUNT(*) as total_facturas
+         FROM facturas WHERE estado = 'timbrada' AND fecha_emision BETWEEN :fecha_inicio AND :fecha_fin`;
+      ventasReplacements = { fecha_inicio, fecha_fin };
+    } else {
+      ventasQuery = `SELECT COALESCE(SUM(total), 0) as ventas_totales, COUNT(*) as total_facturas
+         FROM facturas WHERE estado = 'timbrada'`;
+      ventasReplacements = {};
+    }
+
+    const [ventas, ordenes, inventario, clientes] = await Promise.all([
+      sequelize.query(ventasQuery, { replacements: ventasReplacements, type: QueryTypes.SELECT }),
       sequelize.query(
-        `SELECT COALESCE(SUM(total), 0) as ventas_totales, COUNT(*) as total_facturas 
-         FROM facturas WHERE estado = 'timbrada' ${whereFecha}`,
+        `SELECT estado, COUNT(*) as total FROM ordenes_produccion GROUP BY estado`,
         { type: QueryTypes.SELECT }
       ),
-      
-      // Órdenes de producción
-      sequelize.query(
-        `SELECT estado, COUNT(*) as total 
-         FROM ordenes_produccion 
-         GROUP BY estado`,
-        { type: QueryTypes.SELECT }
-      ),
-      
-      // Inventario
       sequelize.query(
         `SELECT 
           (SELECT COUNT(*) FROM productos WHERE activo = 1) as total_productos,
@@ -37,8 +36,6 @@ router.get('/dashboard', async (req, res) => {
           (SELECT COUNT(*) FROM materiales WHERE activo = 1 AND stock_actual_kg <= stock_minimo_kg) as materiales_bajos`,
         { type: QueryTypes.SELECT }
       ),
-      
-      // Clientes
       sequelize.query(
         `SELECT COUNT(*) as total_clientes FROM clientes WHERE activo = 1`,
         { type: QueryTypes.SELECT }
@@ -46,10 +43,10 @@ router.get('/dashboard', async (req, res) => {
     ]);
 
     res.json({
-      ventas: queries[0][0],
-      ordenes_produccion: queries[1],
-      inventario: queries[2][0],
-      clientes: queries[3][0]
+      ventas: ventas[0] || { ventas_totales: 0, total_facturas: 0 },
+      ordenes_produccion: ordenes,
+      inventario: inventario[0] || {},
+      clientes: clientes[0] || { total_clientes: 0 }
     });
   } catch (error) {
     console.error('Error al obtener dashboard:', error);
@@ -61,22 +58,23 @@ router.get('/dashboard', async (req, res) => {
 router.get('/ventas', async (req, res) => {
   try {
     const { fecha_inicio, fecha_fin, agrupar = 'dia' } = req.query;
-    
-    let formatoFecha;
-    switch (agrupar) {
-      case 'mes': formatoFecha = '%Y-%m'; break;
-      case 'semana': formatoFecha = '%Y-%u'; break;
-      default: formatoFecha = '%Y-%m-%d';
-    }
+
+    // Whitelist de formatos permitidos — nunca interpolar input del usuario en SQL
+    const formatosPermitidos: Record<string, string> = {
+      mes: '%Y-%m',
+      semana: '%Y-%u',
+      dia: '%Y-%m-%d',
+    };
+    const formatoFecha = formatosPermitidos[agrupar as string] ?? '%Y-%m-%d';
 
     const ventas = await sequelize.query(
-      `SELECT 
+      `SELECT
         DATE_FORMAT(fecha_emision, '${formatoFecha}') as periodo,
         COUNT(*) as total_facturas,
         SUM(subtotal) as subtotal,
         SUM(impuesto_trasladado) as iva,
         SUM(total) as total
-      FROM facturas 
+      FROM facturas
       WHERE estado = 'timbrada'
         AND fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
       GROUP BY DATE_FORMAT(fecha_emision, '${formatoFecha}')
@@ -141,9 +139,11 @@ router.get('/produccion', async (req, res) => {
 router.get('/top-productos', async (req, res) => {
   try {
     const { fecha_inicio, fecha_fin, limite = 10 } = req.query;
-    
+    // Sanitizar límite: entero entre 1 y 50
+    const limiteSeguro = Math.min(50, Math.max(1, parseInt(limite as string) || 10));
+
     const topProductos = await sequelize.query(
-      `SELECT 
+      `SELECT
         p.codigo,
         p.nombre,
         SUM(fd.cantidad) as cantidad_vendida,
@@ -155,9 +155,9 @@ router.get('/top-productos', async (req, res) => {
         AND f.fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
       GROUP BY p.id, p.codigo, p.nombre
       ORDER BY cantidad_vendida DESC
-      LIMIT ${limite}`,
+      LIMIT :limite`,
       {
-        replacements: { fecha_inicio, fecha_fin },
+        replacements: { fecha_inicio, fecha_fin, limite: limiteSeguro },
         type: QueryTypes.SELECT
       }
     );
