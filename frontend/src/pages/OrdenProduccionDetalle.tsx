@@ -154,16 +154,19 @@ export default function OrdenProduccionDetallePage() {
     const token = localStorage.getItem('token')
     const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/pdf/orden-produccion/${id}`
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob())
+      .then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error(e.error || `HTTP ${r.status}`)))
+        return r.blob()
+      })
       .then(blob => {
-        const objUrl = URL.createObjectURL(blob)
+        const objUrl = URL.createObjectURL(blob as Blob)
         const a = document.createElement('a')
         a.href = objUrl
         a.download = `op-${orden?.folio || id}.pdf`
         a.click()
         URL.revokeObjectURL(objUrl)
       })
-      .catch(() => toast.error('Error al generar PDF'))
+      .catch((e: Error) => toast.error(`Error al generar PDF: ${e.message}`))
   }
 
   if (loading) {

@@ -214,15 +214,18 @@ export default function Cotizaciones() {
     link.target = '_blank'
     // El token se enviará via header en fetch; abrimos con fetch y blob para navegadores modernos
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob())
+      .then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(new Error(e.error || `HTTP ${r.status}`)))
+        return r.blob()
+      })
       .then(blob => {
-        const objUrl = URL.createObjectURL(blob)
+        const objUrl = URL.createObjectURL(blob as Blob)
         link.href = objUrl
         link.download = `cotizacion-${id}.pdf`
         link.click()
         URL.revokeObjectURL(objUrl)
       })
-      .catch(() => toast.error('Error al generar PDF'))
+      .catch((e: Error) => toast.error(`Error al generar PDF: ${e.message}`))
   }
 
   const getEstadoBadge = (estado: string) => {
