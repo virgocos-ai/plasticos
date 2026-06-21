@@ -38,7 +38,10 @@ export default function Dashboard() {
       ])
       if (dashRes.status === 'fulfilled') setData(dashRes.value.data)
       else console.error('Error cargando dashboard:', dashRes.reason)
-      if (ordenesRes.status === 'fulfilled') setOrdenesRecientes(ordenesRes.value.data.slice(0, 5))
+      if (ordenesRes.status === 'fulfilled') {
+        const raw = ordenesRes.value.data
+        setOrdenesRecientes(Array.isArray(raw) ? raw.slice(0, 5) : (raw.data ?? []).slice(0, 5))
+      }
       setLastUpdate(new Date())
     } catch (error) {
       console.error('Error cargando dashboard:', error)

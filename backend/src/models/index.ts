@@ -42,6 +42,10 @@ Factura.belongsTo(Cliente, { foreignKey: 'cliente_id', as: 'cliente' });
 Proveedor.hasMany(Material, { foreignKey: 'proveedor_preferido_id', as: 'materiales' });
 Material.belongsTo(Proveedor, { foreignKey: 'proveedor_preferido_id', as: 'proveedorPreferido' });
 
+// Producto - Material principal
+Producto.belongsTo(Material, { foreignKey: 'material_principal_id', as: 'materialPrincipal' });
+Material.hasMany(Producto, { foreignKey: 'material_principal_id', as: 'productos' });
+
 // Producto - FacturaDetalle
 Producto.hasMany(FacturaDetalle, { foreignKey: 'producto_id', as: 'facturaDetalles' });
 FacturaDetalle.belongsTo(Producto, { foreignKey: 'producto_id', as: 'producto' });

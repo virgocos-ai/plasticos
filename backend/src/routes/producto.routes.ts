@@ -7,8 +7,8 @@ const router = Router();
 // Obtener todos los productos
 router.get('/', async (req, res) => {
   try {
-    const { tipo, activo = true } = req.query;
-    const where: any = { activo: activo === 'true' };
+    const { tipo, activo = 'true' } = req.query;
+    const where: any = { activo: activo !== 'false' };
     if (tipo) where.tipo = tipo;
 
     const productos = await Producto.findAll({
