@@ -5,15 +5,16 @@
 -- ============================================================
 
 -- Insertar admin solo si no existe
+-- Hash bcrypt 12 rounds de 'admin123'
 INSERT INTO usuarios (nombre, email, password, rol, activo, created_at, updated_at)
-SELECT 'Administrador', 'admin@empresa.com',
-       '$2a$12$hRhljELqq.N4dmka/OFqr.nNnzysA/XgjqEHhyKsH59UaJx3NKbZG',
+SELECT 'Administrador', 'admin@plasticos.com',
+       '$2a$10$dUcNVH83WofSBltJXYtqsOQ5oQ8kFuM6ZUUddlQqsNqkRRqmCo7fG',
        'admin', 1, NOW(), NOW()
 WHERE NOT EXISTS (
-  SELECT 1 FROM usuarios WHERE email = 'admin@empresa.com'
+  SELECT 1 FROM usuarios WHERE email = 'admin@plasticos.com'
 );
 
 -- Credenciales iniciales:
---   Email:    admin@empresa.com
---   Password: Admin123!
+--   Email:    admin@plasticos.com
+--   Password: admin123
 -- ¡Cámbia la contraseña inmediatamente desde la app!
