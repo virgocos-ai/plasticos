@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useAuthStore } from '../store/authStore'
+import { useEmpresaLogo } from '../hooks/useEmpresaLogo'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -10,6 +11,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
+  const logoSrc = useEmpresaLogo()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,10 +36,13 @@ export default function Login() {
     <div className="flex min-h-screen flex-col justify-center bg-gray-50 py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <img src="/logo.svg" alt="Systema Plásticos" className="h-16 w-auto" />
+          {logoSrc
+            ? <img src={logoSrc} alt="Logo empresa" className="h-24 w-auto object-contain" />
+            : <img src="/logo.svg" alt="Sistema" className="h-16 w-auto" />
+          }
         </div>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Sistema de Gestión - Normativa Mexicana CFDI
+        <p className="mt-3 text-center text-sm text-gray-600">
+          Sistema de Gestión — Normativa Mexicana CFDI
         </p>
       </div>
 
@@ -80,10 +85,6 @@ export default function Login() {
               {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
           </form>
-
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Demo: admin@plasticos.com / admin123</p>
-          </div>
         </div>
       </div>
     </div>

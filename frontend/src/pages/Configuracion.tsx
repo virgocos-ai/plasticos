@@ -219,8 +219,11 @@ export default function Configuracion() {
       });
       setEditedValues(initial);
       setSaveStates({});
-      const logoConfig = res.data.find((c: ConfigItem) => c.clave === 'EMPRESA_LOGO');
-      if (logoConfig?.valor) setLogoUrl(`http://localhost:5000${logoConfig.valor}`);
+      // Verificar si el logo existe comprobando el archivo estático
+      const img = new Image();
+      img.onload = () => setLogoUrl(`http://localhost:5000/uploads/empresa-logo.png?t=${Date.now()}`);
+      img.onerror = () => setLogoUrl('');
+      img.src = `http://localhost:5000/uploads/empresa-logo.png?t=${Date.now()}`;
     } catch (error) {
       toast.error('Error al cargar configuracion');
     } finally {
@@ -236,8 +239,8 @@ export default function Configuracion() {
     try {
       const form = new FormData();
       form.append('logo', file);
-      const res = await api.post('/configuracion/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setLogoUrl(`http://localhost:5000${res.data.url}`);
+      await api.post('/configuracion/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setLogoUrl(`http://localhost:5000/uploads/empresa-logo.png?t=${Date.now()}`);
       toast.success('Logo actualizado correctamente');
     } catch {
       toast.error('Error al subir el logo');

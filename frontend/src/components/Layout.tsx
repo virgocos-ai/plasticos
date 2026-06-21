@@ -7,9 +7,9 @@ import {
   UserCog, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen,
   LayoutList, Store, CalendarDays, Layers, FlaskConical, PackageCheck, ClipboardCheck
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuthStore } from '../store/authStore'
-import api from '../lib/api'
+import { useEmpresaLogo } from '../hooks/useEmpresaLogo'
 
 type Rol = 'admin' | 'operador' | 'contador' | 'almacen'
 
@@ -189,15 +189,9 @@ function SidebarNav({ rol, collapsed, onClose }: SidebarNavProps) {
 export default function Layout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [empresaLogo, setEmpresaLogo] = useState<string>('')
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
-
-  useEffect(() => {
-    api.get('/configuracion/EMPRESA_LOGO').then(r => {
-      if (r.data?.valor) setEmpresaLogo(`http://localhost:5000${r.data.valor}`)
-    }).catch(() => {})
-  }, [])
+  const empresaLogo = useEmpresaLogo()
 
   const handleLogout = () => { logout(); navigate('/login') }
 
