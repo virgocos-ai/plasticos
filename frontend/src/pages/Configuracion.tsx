@@ -204,7 +204,11 @@ export default function Configuracion() {
 
   const loadConfigs = async () => {
     try {
-      const res = await api.get('/configuracion');
+      let res = await api.get('/configuracion');
+      if (res.data.length === 0) {
+        await api.post('/configuracion/seed');
+        res = await api.get('/configuracion');
+      }
       setConfigs(res.data);
       const initial: Record<string, string> = {};
       res.data.forEach((c: ConfigItem) => {
@@ -236,7 +240,8 @@ export default function Configuracion() {
       await api.put(`/configuracion/${clave}`, { valor: editedValues[clave] });
       setSaveStates(prev => ({ ...prev, [clave]: 'saved' }));
       setConfigs(prev => prev.map(c => c.clave === clave ? { ...c, valor: editedValues[clave] } : c));
-      toast.success(`${clave} guardado`);
+      const desc = configs.find(c => c.clave === clave)?.descripcion || clave;
+      toast.success(`${desc} guardado`);
       setTimeout(() => {
         setSaveStates(prev => ({ ...prev, [clave]: 'idle' }));
       }, 2000);
@@ -250,16 +255,19 @@ export default function Configuracion() {
     setSavingAll(true);
     try {
       const changed: Record<string, string> = {};
+      let hasErrors = false;
       configs.forEach(c => {
         if (c.editable && editedValues[c.clave] !== c.valor) {
           const err = getFieldValidator(c.clave)(editedValues[c.clave]);
           if (err) {
             toast.error(`${c.descripcion || c.clave}: ${err}`);
+            hasErrors = true;
             return;
           }
           changed[c.clave] = editedValues[c.clave];
         }
       });
+      if (hasErrors) return;
       if (Object.keys(changed).length === 0) {
         toast('No hay cambios pendientes');
         return;
@@ -275,9 +283,10 @@ export default function Configuracion() {
   };
 
   const handleSeed = async () => {
+    if (!window.confirm('¿Crear configuraciones faltantes con valores por defecto?\n\nLos valores que ya existen NO se modificarán.')) return;
     try {
       await api.post('/configuracion/seed');
-      toast.success('Configuraciones por defecto restauradas');
+      toast.success('Configuraciones por defecto creadas (existentes sin cambios)');
       loadConfigs();
     } catch (error) {
       toast.error('Error al restaurar configuraciones');
