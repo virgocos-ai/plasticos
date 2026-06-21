@@ -8,12 +8,13 @@ const router = Router();
 // Listar inspecciones
 router.get('/', async (req, res) => {
   try {
-    const { tipo_inspeccion, resultado, producto_id, fecha_inicio, fecha_fin } = req.query;
+    const { tipo_inspeccion, resultado, producto_id, orden_produccion_id, fecha_inicio, fecha_fin } = req.query;
     const where: any = {};
-    
+
     if (tipo_inspeccion) where.tipo_inspeccion = tipo_inspeccion;
     if (resultado) where.resultado = resultado;
     if (producto_id) where.producto_id = producto_id;
+    if (orden_produccion_id) where.orden_produccion_id = orden_produccion_id;
     if (fecha_inicio && fecha_fin) {
       where.fecha_inspeccion = { [Op.between]: [fecha_inicio, fecha_fin] };
     }
@@ -23,7 +24,7 @@ router.get('/', async (req, res) => {
       include: [
         { model: Producto, as: 'producto', attributes: ['codigo', 'nombre'] },
         { model: OrdenProduccion, as: 'ordenProduccion', attributes: ['folio'] },
-        { model: Lote, as: 'lote', attributes: ['codigo'] },
+        { model: Lote, as: 'lote', attributes: ['numero_lote'] },
         { model: Usuario, as: 'inspector', attributes: ['nombre'] }
       ],
       order: [['fecha_inspeccion', 'DESC']]
