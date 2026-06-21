@@ -7,9 +7,9 @@ const router = Router();
 // Obtener todos los proveedores
 router.get('/', async (req, res) => {
   try {
-    const { activo = true } = req.query;
+    const { activo = 'true' } = req.query;
     const proveedores = await Proveedor.findAll({
-      where: { activo: activo === 'true' },
+      where: { activo: activo !== 'false' },
       order: [['razon_social', 'ASC']]
     });
     res.json(proveedores);
