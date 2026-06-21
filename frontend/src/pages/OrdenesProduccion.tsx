@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Factory, CheckCircle, Clock, Edit, ChevronRight, X, PlayCircle, XCircle, Eye } from 'lucide-react'
+import { Plus, Search, Factory, CheckCircle, Clock, X, PlayCircle, XCircle, Eye } from 'lucide-react'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { SkeletonTable } from '../components/Skeleton'
 import { useNavigate } from 'react-router-dom'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
@@ -56,18 +58,26 @@ export default function OrdenesProduccion() {
   const [filterEstado, setFilterEstado] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<OrdenForm>(emptyForm())
+  const [confirmCancelar, setConfirmCancelar] = useState<number | null>(null)
   const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [materiales, setMateriales] = useState<Material[]>([])
 
-  useEffect(() => { loadOrdenes(); loadCatalogos() }, [])
+  useEffect(() => { loadCatalogos() }, [])
+  useEffect(() => {
+    const timer = setTimeout(() => loadOrdenes(search, filterEstado), 350)
+    return () => clearTimeout(timer)
+  }, [search, filterEstado])
 
-  const loadOrdenes = async () => {
+  const loadOrdenes = async (q = '', estado = '') => {
     try {
-      const response = await api.get('/ordenes-produccion')
-      setOrdenes(response.data)
+      const params = new URLSearchParams()
+      if (q) params.set('search', q)
+      if (estado) params.set('estado', estado)
+      const response = await api.get(`/ordenes-produccion?${params}`)
+      setOrdenes(response.data.data ?? response.data)
     } catch { toast.error('Error al cargar órdenes') }
     finally { setLoading(false) }
   }
@@ -75,13 +85,13 @@ export default function OrdenesProduccion() {
   const loadCatalogos = async () => {
     try {
       const [c, p, m] = await Promise.all([
-        api.get('/clientes?activo=1'),
+        api.get('/clientes'),
         api.get('/productos?activo=1'),
         api.get('/materiales?activo=1')
       ])
-      setClientes(c.data)
-      setProductos(p.data)
-      setMateriales(m.data)
+      setClientes(c.data.data ?? c.data)
+      setProductos(p.data.data ?? p.data)
+      setMateriales(m.data.data ?? m.data)
     } catch { /* silencioso */ }
   }
 
@@ -100,7 +110,6 @@ export default function OrdenesProduccion() {
         turno: form.turno,
         tiempo_estimado_min: form.tiempo_estimado_min ? parseInt(form.tiempo_estimado_min) : null,
         observaciones: form.observaciones || null,
-        usuario_id: 1,
         detalles: form.detalles.map(d => ({
           producto_id: parseInt(d.producto_id),
           material_id: d.material_id ? parseInt(d.material_id) : null,
@@ -116,7 +125,8 @@ export default function OrdenesProduccion() {
       loadOrdenes()
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Error al crear orden')
-    } finally { setSaving(false) }
+      setSaving(false)
+    }
   }
 
   const handleCambiarEstado = async (id: number, estado: string) => {
@@ -157,13 +167,9 @@ export default function OrdenesProduccion() {
     return <span className={`px-2 py-0.5 rounded-full text-xs ${map[p] || 'bg-gray-100 text-gray-600'}`}>{p?.toUpperCase()}</span>
   }
 
-  const filtered = ordenes.filter(o => {
-    const matchSearch = !search || o.folio.toLowerCase().includes(search.toLowerCase()) || o.cliente?.razon_social?.toLowerCase().includes(search.toLowerCase())
-    const matchEstado = !filterEstado || o.estado === filterEstado
-    return matchSearch && matchEstado
-  })
+  const filtered = ordenes
 
-  if (loading) return <div className="text-center py-10 text-gray-500">Cargando órdenes...</div>
+  if (loading) return <SkeletonTable rows={6} cols={6} />
 
   return (
     <div className="space-y-4">
@@ -254,16 +260,13 @@ export default function OrdenesProduccion() {
                     )}
                     {(orden.estado === 'pendiente' || orden.estado === 'en_produccion') && (
                       <button
-                        onClick={() => { if (confirm('¿Cancelar esta orden?')) handleCambiarEstado(orden.id, 'cancelada') }}
+                        onClick={() => setConfirmCancelar(orden.id)}
                         title="Cancelar"
                         className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
                       >
                         <XCircle className="h-4 w-4" />
                       </button>
                     )}
-                    <button title="Detalle" className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
                   </div>
                 </td>
               </tr>
@@ -274,6 +277,16 @@ export default function OrdenesProduccion() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmCancelar !== null}
+        onClose={() => setConfirmCancelar(null)}
+        onConfirm={() => { if (confirmCancelar !== null) handleCambiarEstado(confirmCancelar, 'cancelada'); setConfirmCancelar(null) }}
+        title="Cancelar orden de producción"
+        message="¿Estás seguro de cancelar esta orden? Esta acción no se puede deshacer."
+        confirmText="Cancelar orden"
+        type="danger"
+      />
 
       {showModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">

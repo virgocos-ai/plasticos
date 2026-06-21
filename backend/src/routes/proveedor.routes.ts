@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { Proveedor } from '../models';
 
@@ -13,7 +14,7 @@ router.get('/', async (req, res) => {
     });
     res.json(proveedores);
   } catch (error) {
-    console.error('Error al obtener proveedores:', error);
+    logger.error('Error al obtener proveedores:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener proveedores' });
   }
 });
@@ -27,7 +28,7 @@ router.get('/:id', async (req, res) => {
     }
     res.json(proveedor);
   } catch (error) {
-    console.error('Error al obtener proveedor:', error);
+    logger.error('Error al obtener proveedor:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener proveedor' });
   }
 });
@@ -52,7 +53,7 @@ router.post('/', async (req, res) => {
     const proveedor = await Proveedor.create(proveedorData);
     res.status(201).json(proveedor);
   } catch (error) {
-    console.error('Error al crear proveedor:', error);
+    logger.error('Error al crear proveedor:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear proveedor' });
   }
 });
@@ -68,7 +69,7 @@ router.put('/:id', async (req, res) => {
     await proveedor.update(req.body);
     res.json(proveedor);
   } catch (error) {
-    console.error('Error al actualizar proveedor:', error);
+    logger.error('Error al actualizar proveedor:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al actualizar proveedor' });
   }
 });
@@ -84,7 +85,7 @@ router.delete('/:id', async (req, res) => {
     await proveedor.update({ activo: false });
     res.json({ message: 'Proveedor eliminado correctamente' });
   } catch (error) {
-    console.error('Error al eliminar proveedor:', error);
+    logger.error('Error al eliminar proveedor:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al eliminar proveedor' });
   }
 });

@@ -5,7 +5,7 @@ import {
   Building2, ClipboardList, Settings, Wrench, UserCircle,
   FileSpreadsheet, ShoppingCart, ShieldCheck, Boxes,
   UserCog, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen,
-  LayoutList, Store, CalendarDays
+  LayoutList, Store, CalendarDays, Layers, FlaskConical, PackageCheck, ClipboardCheck
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuthStore } from '../store/authStore'
@@ -45,7 +45,10 @@ const navSections: NavSection[] = [
       { name: 'Productos', href: '/productos', icon: Package },
       { name: 'Materiales', href: '/materiales', icon: Boxes, roles: ['admin', 'almacen'] },
       { name: 'Máquinas', href: '/maquinas', icon: Wrench },
+      { name: 'Moldes', href: '/moldes', icon: Layers },
+      { name: 'Recetas Inyección', href: '/recetas-inyeccion', icon: FlaskConical },
       { name: 'Operadores', href: '/operadores', icon: UserCircle },
+      { name: 'Mantenimiento', href: '/mantenimiento', icon: ClipboardCheck },
       { name: 'Calidad', href: '/calidad', icon: ShieldCheck },
     ]
   },
@@ -56,6 +59,13 @@ const navSections: NavSection[] = [
       { name: 'Inventario', href: '/inventario', icon: LayoutList },
       { name: 'Almacenes', href: '/almacenes', icon: Store },
       { name: 'Lotes', href: '/lotes', icon: ClipboardList },
+    ]
+  },
+  {
+    label: 'Logística',
+    roles: ['admin', 'almacen'],
+    items: [
+      { name: 'Envíos y Distribución', href: '/logistica', icon: PackageCheck },
     ]
   },
   {

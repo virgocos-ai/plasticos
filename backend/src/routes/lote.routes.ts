@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import Lote from '../models/Lote';
@@ -8,20 +9,39 @@ import { verifyToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// GET /api/lotes - Listar todos los lotes
+// GET /api/lotes - Listar todos los lotes (con paginación y búsqueda)
 router.get('/', async (req, res) => {
   try {
-    const lotes = await Lote.findAll({
+    const { search, estado, tipo, page, limit } = req.query;
+    const where: any = {};
+
+    if (estado) where.estado = estado;
+    if (tipo) where.tipo = tipo;
+    if (search) {
+      where[Op.or] = [
+        { numero_lote: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 50;
+
+    const { count, rows } = await Lote.findAndCountAll({
+      where,
       include: [
         { model: Producto, as: 'producto', attributes: ['id', 'codigo', 'nombre'] },
         { model: Material, as: 'material', attributes: ['id', 'codigo', 'nombre'] },
         { model: Almacen, as: 'almacen', attributes: ['id', 'codigo', 'nombre'] },
       ],
       order: [['fecha_entrada', 'DESC']],
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+      distinct: true,
     });
-    res.json(lotes);
+
+    res.json({ data: rows, total: count, page: pageNum, limit: limitNum, totalPages: Math.ceil(count / limitNum) });
   } catch (error) {
-    console.error('Error al obtener lotes:', error);
+    logger.error('Error al obtener lotes:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener lotes' });
   }
 });
@@ -132,7 +152,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(lote);
   } catch (error) {
-    console.error('Error al crear lote:', error);
+    logger.error('Error al crear lote:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear lote' });
   }
 });
@@ -208,7 +228,7 @@ router.get('/:id/trazabilidad', async (req, res) => {
       return res.status(404).json({ error: 'Lote no encontrado' });
     }
 
-    const loteData = lote.toJSON();
+    const loteData = lote.toJSON() as any;
 
     res.json({
       trazabilidad: {
@@ -237,7 +257,7 @@ router.get('/:id/trazabilidad', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error al obtener trazabilidad:', error);
+    logger.error('Error al obtener trazabilidad:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener trazabilidad' });
   }
 });

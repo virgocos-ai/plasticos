@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Edit2, Trash2, Package, CheckCircle, Truck } from 'lucide-react'
+import { Plus, Search, Trash2, Package, Truck, ClipboardCheck } from 'lucide-react'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface OrdenCompra {
   id: number
@@ -35,6 +36,9 @@ export default function OrdenesCompra() {
   const [showModal, setShowModal] = useState(false)
   const [showRecepcionModal, setShowRecepcionModal] = useState(false)
   const [selectedOrden, setSelectedOrden] = useState<OrdenCompra | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [recepcionDetalles, setRecepcionDetalles] = useState<any[]>([])
+  const [savingRecepcion, setSavingRecepcion] = useState(false)
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
   const [materiales, setMateriales] = useState<Material[]>([])
   const [detalles, setDetalles] = useState<any[]>([{ material_id: '', cantidad_solicitada: 1, precio_unitario: 0, descuento: 0 }])
@@ -153,16 +157,52 @@ export default function OrdenesCompra() {
     }
   }
 
+  const handleEliminar = async (id: number) => {
+    try {
+      await api.delete(`/ordenes-compra/${id}`)
+      toast.success('Orden eliminada')
+      loadOrdenes()
+    } catch (error) {
+      toast.error('Error al eliminar orden')
+    } finally {
+      setConfirmDelete(null)
+    }
+  }
+
+  const abrirRecepcion = async (orden: OrdenCompra) => {
+    setSelectedOrden(orden)
+    // Cargar detalles de la OC para pre-llenar la recepción
+    try {
+      const res = await api.get(`/ordenes-compra/${orden.id}`)
+      const dets = (res.data.detalles || []).map((d: any) => ({
+        id: d.id,
+        material_id: d.material_id,
+        nombre_material: d.material?.nombre || `Material ${d.material_id}`,
+        cantidad_solicitada: d.cantidad_solicitada,
+        cantidad_recibida: d.cantidad_solicitada, // pre-llenar con lo solicitado
+        precio_unitario: d.precio_unitario
+      }))
+      setRecepcionDetalles(dets)
+    } catch {
+      setRecepcionDetalles([])
+    }
+    setShowRecepcionModal(true)
+  }
+
   const handleRecepcion = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedOrden) return
+    setSavingRecepcion(true)
     try {
-      await api.post(`/ordenes-compra/${selectedOrden.id}/recepcion`, { detalles })
-      toast.success('Recepción registrada')
+      await api.post(`/ordenes-compra/${selectedOrden.id}/recepcion`, { detalles: recepcionDetalles })
+      toast.success('✅ Recepción registrada — stock de materiales actualizado')
       setShowRecepcionModal(false)
+      setSelectedOrden(null)
       loadOrdenes()
-    } catch (error) {
-      toast.error('Error al registrar recepción')
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Error al registrar recepción')
+    } finally {
+      setSavingRecepcion(false)
     }
   }
 
@@ -239,21 +279,93 @@ export default function OrdenesCompra() {
                     <button onClick={() => handleCambiarEstado(orden.id, 'enviada')} className="text-blue-600 hover:text-blue-900 mr-2" title="Enviar"><Package className="h-4 w-4" /></button>
                   )}
                   {(orden.estado === 'enviada' || orden.estado === 'parcial') && (
-                    <button 
-                      onClick={() => { setSelectedOrden(orden); setShowRecepcionModal(true); }} 
-                      className="text-green-600 hover:text-green-900 mr-2" 
-                      title="Registrar recepción"
+                    <button
+                      onClick={() => abrirRecepcion(orden)}
+                      className="text-green-600 hover:text-green-900 mr-2"
+                      title="Registrar recepción de materiales"
                     >
                       <Truck className="h-4 w-4" />
                     </button>
                   )}
-                  <button className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button>
+                  {orden.estado === 'borrador' && (
+                    <button
+                      onClick={() => setConfirmDelete(orden.id)}
+                      className="text-red-600 hover:text-red-900"
+                      title="Eliminar orden"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Modal Recepción de materiales */}
+      <Modal isOpen={showRecepcionModal} onClose={() => setShowRecepcionModal(false)} title={`Recepción — ${selectedOrden?.folio}`} size="lg">
+        <form onSubmit={handleRecepcion} className="space-y-4">
+          <p className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <strong>Registra las cantidades físicamente recibidas.</strong> Al confirmar, el stock de cada material se actualizará automáticamente en el inventario.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-gray-500 uppercase text-xs">Material</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-500 uppercase text-xs">Solicitado</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-500 uppercase text-xs">Recibido (kg)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {recepcionDetalles.map((det, i) => (
+                  <tr key={i}>
+                    <td className="px-3 py-2 font-medium text-gray-800">{det.nombre_material}</td>
+                    <td className="px-3 py-2 text-right text-gray-500">{det.cantidad_solicitada} kg</td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        className="w-full border border-gray-300 rounded p-1.5 text-right text-sm"
+                        value={det.cantidad_recibida}
+                        onChange={e => {
+                          const updated = [...recepcionDetalles]
+                          updated[i].cantidad_recibida = parseFloat(e.target.value) || 0
+                          setRecepcionDetalles(updated)
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <button type="button" onClick={() => setShowRecepcionModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={savingRecepcion}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50">
+              <ClipboardCheck className="h-4 w-4" />
+              {savingRecepcion ? 'Registrando...' : 'Confirmar recepción'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete !== null && handleEliminar(confirmDelete)}
+        title="Eliminar orden de compra"
+        message="¿Eliminar esta orden de compra en borrador? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        type="danger"
+      />
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Nueva Orden de Compra" size="xl">
         <form onSubmit={handleSubmit} className="space-y-4">

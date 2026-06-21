@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Package, AlertTriangle, CheckCircle, XCircle, ClipboardList } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 
@@ -39,9 +40,15 @@ export default function Lotes() {
   const [productos, setProductos] = useState([])
   const [materiales, setMateriales] = useState([])
   const [almacenes, setAlmacenes] = useState([])
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    numero_lote: string; tipo: Lote['tipo']; producto_id: string
+    material_id: string; almacen_id: string; cantidad_inicial: string
+    unidad_medida: string; fecha_produccion: string; fecha_caducidad: string
+    temperatura_almacenamiento: string; humedad_almacenamiento: string
+    observaciones: string; certificado_calidad: string
+  }>({
     numero_lote: '',
-    tipo: 'producto' as const,
+    tipo: 'producto',
     producto_id: '',
     material_id: '',
     almacen_id: '',
@@ -63,7 +70,7 @@ export default function Lotes() {
   const loadLotes = async () => {
     try {
       const response = await api.get('/lotes')
-      setLotes(response.data)
+      setLotes(response.data.data ?? response.data)
     } catch (error) {
       toast.error('Error al cargar lotes')
     } finally {
@@ -116,7 +123,7 @@ export default function Lotes() {
   const resetForm = () => {
     setFormData({
       numero_lote: '',
-      tipo: 'producto',
+      tipo: 'producto' as Lote['tipo'],
       producto_id: '',
       material_id: '',
       almacen_id: '',
@@ -357,6 +364,8 @@ export default function Lotes() {
       </div>
     )
   }
+
+  if (loading) return <SkeletonTable rows={6} cols={6} />
 
   return (
     <div className="space-y-4">

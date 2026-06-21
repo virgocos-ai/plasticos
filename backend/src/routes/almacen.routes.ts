@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import Almacen from '../models/Almacen';
 import { verifyToken } from '../middleware/auth.middleware';
@@ -70,7 +71,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(almacen);
   } catch (error) {
-    console.error('Error al crear almacén:', error);
+    logger.error('Error al crear almacén:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear almacén' });
   }
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Warehouse, RefreshCw } from 'lucide-react'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface Almacen {
   id: number
@@ -22,16 +23,23 @@ const tiposAlmacen = {
   transito: 'Tránsito'
 }
 
+type TipoAlmacen = 'principal' | 'secundario' | 'cuarentena' | 'merma' | 'transito'
+
 export default function Almacenes() {
   const [almacenes, setAlmacenes] = useState<Almacen[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingAlmacen, setEditingAlmacen] = useState<Almacen | null>(null)
-  const [formData, setFormData] = useState({
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [confirmSeed, setConfirmSeed] = useState(false)
+  const [formData, setFormData] = useState<{
+    codigo: string; nombre: string; tipo: TipoAlmacen;
+    ubicacion: string; responsable: string; telefono: string
+  }>({
     codigo: '',
     nombre: '',
-    tipo: 'principal' as const,
+    tipo: 'principal',
     ubicacion: '',
     responsable: '',
     telefono: ''
@@ -75,7 +83,7 @@ export default function Almacenes() {
     setFormData({
       codigo: '',
       nombre: '',
-      tipo: 'principal',
+      tipo: 'principal' as TipoAlmacen,
       ubicacion: '',
       responsable: '',
       telefono: ''
@@ -96,18 +104,19 @@ export default function Almacenes() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar este almacén?')) return
     try {
       await api.delete(`/almacenes/${id}`)
       toast.success('Almacén eliminado')
       loadAlmacenes()
     } catch (error) {
       toast.error('Error al eliminar almacén')
+    } finally {
+      setConfirmDelete(null)
     }
   }
 
   const handleSeed = async () => {
-    if (!confirm('¿Crear almacenes por defecto?')) return
+    setConfirmSeed(false)
     try {
       const response = await api.post('/almacenes/seed')
       toast.success(response.data.message)
@@ -231,7 +240,7 @@ export default function Almacenes() {
         </h1>
         <div className="flex gap-2">
           <button
-            onClick={handleSeed}
+            onClick={() => setConfirmSeed(true)}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
           >
             <RefreshCw className="h-4 w-4" />
@@ -317,7 +326,7 @@ export default function Almacenes() {
                     </button>
                     {almacen.activo && (
                       <button
-                        onClick={() => handleDelete(almacen.id)}
+                        onClick={() => setConfirmDelete(almacen.id)}
                         className="text-red-600 hover:text-red-900"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -330,6 +339,24 @@ export default function Almacenes() {
           </tbody>
         </table>
       </div>
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete !== null && handleDelete(confirmDelete)}
+        title="Eliminar almacén"
+        message="¿Estás seguro de eliminar este almacén? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        type="danger"
+      />
+      <ConfirmDialog
+        isOpen={confirmSeed}
+        onClose={() => setConfirmSeed(false)}
+        onConfirm={handleSeed}
+        title="Crear almacenes por defecto"
+        message="Se crearán los almacenes estándar (Principal, Cuarentena, Merma). ¿Continuar?"
+        confirmText="Crear"
+        type="info"
+      />
     </div>
   )
 }

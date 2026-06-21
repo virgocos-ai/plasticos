@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { SkeletonPage } from '../components/Skeleton'
 import { 
   DollarSign, Package, Users, AlertTriangle,
   TrendingUp, Factory, FileText, ShoppingCart,
@@ -31,12 +32,13 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     setLoading(true)
     try {
-      const [dashRes, ordenesRes] = await Promise.all([
+      const [dashRes, ordenesRes] = await Promise.allSettled([
         api.get('/reportes/dashboard'),
         api.get('/ordenes-produccion?estado=en_produccion')
       ])
-      setData(dashRes.data)
-      setOrdenesRecientes(ordenesRes.data.slice(0, 5))
+      if (dashRes.status === 'fulfilled') setData(dashRes.value.data)
+      else console.error('Error cargando dashboard:', dashRes.reason)
+      if (ordenesRes.status === 'fulfilled') setOrdenesRecientes(ordenesRes.value.data.slice(0, 5))
       setLastUpdate(new Date())
     } catch (error) {
       console.error('Error cargando dashboard:', error)
@@ -46,7 +48,19 @@ export default function Dashboard() {
   }
 
   if (loading && !data) {
-    return <div className="text-center py-10 text-gray-500">Cargando dashboard...</div>
+    return <SkeletonPage />
+  }
+
+  if (!loading && !data) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-red-500 font-medium mb-2">No se pudo cargar el dashboard</p>
+        <p className="text-gray-400 text-sm mb-4">Verifica que el servidor esté activo</p>
+        <button onClick={loadDashboard} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+          Reintentar
+        </button>
+      </div>
+    )
   }
 
   const ordenesEstados = {

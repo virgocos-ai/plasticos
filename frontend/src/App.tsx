@@ -22,6 +22,10 @@ import Calidad from './pages/Calidad'
 import Usuarios from './pages/Usuarios'
 import OrdenProduccionDetalle from './pages/OrdenProduccionDetalle'
 import Gantt from './pages/Gantt'
+import Moldes from './pages/Moldes'
+import RecetasInyeccion from './pages/RecetasInyeccion'
+import Logistica from './pages/Logistica'
+import Mantenimiento from './pages/Mantenimiento'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import { useAuthStore } from './store/authStore'
@@ -53,6 +57,10 @@ function App() {
           <Route path="ordenes-produccion" element={<OrdenesProduccion />} />
           <Route path="ordenes-produccion/:id" element={<OrdenProduccionDetalle />} />
           <Route path="gantt" element={<Gantt />} />
+          <Route path="moldes" element={<Moldes />} />
+          <Route path="recetas-inyeccion" element={<RecetasInyeccion />} />
+          <Route path="logistica" element={<Logistica />} />
+          <Route path="mantenimiento" element={<Mantenimiento />} />
           <Route path="facturas" element={<Facturas />} />
           <Route path="inventario" element={<Inventario />} />
           <Route path="reportes" element={<Reportes />} />

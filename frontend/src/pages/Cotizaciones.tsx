@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Trash2, Send, CheckCircle, XCircle, RefreshCw, Eye } from 'lucide-react'
+import { Plus, Search, Trash2, Send, CheckCircle, XCircle, RefreshCw, Eye, FileText } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface Cotizacion {
   id: number
@@ -42,7 +44,9 @@ export default function Cotizaciones() {
   const [convertId, setConvertId] = useState<number | null>(null)
   const [convertFolio, setConvertFolio] = useState('')
   const [convertForm, setConvertForm] = useState({ fecha_entrega: '', maquina_asignada: '', turno: 'matutino', observaciones: '' })
+  const [loading, setLoading] = useState(true)
   const [converting, setConverting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
   const [detalles, setDetalles] = useState<any[]>([{ producto_id: '', cantidad: 1, precio_unitario: 0, descuento: 0 }])
   const [formData, setFormData] = useState({
     cliente_id: '',
@@ -67,16 +71,18 @@ export default function Cotizaciones() {
   const loadCotizaciones = async () => {
     try {
       const response = await api.get('/cotizaciones')
-      setCotizaciones(response.data)
+      setCotizaciones(response.data.data ?? response.data)
     } catch (error) {
       toast.error('Error al cargar cotizaciones')
+    } finally {
+      setLoading(false)
     }
   }
 
   const loadClientes = async () => {
     try {
       const response = await api.get('/clientes')
-      setClientes(response.data)
+      setClientes(response.data.data ?? response.data)
     } catch (error) {
       console.error('Error al cargar clientes')
     }
@@ -190,7 +196,6 @@ export default function Cotizaciones() {
   }
 
   const handleEliminar = async (id: number) => {
-    if (!confirm('¿Eliminar esta cotización?')) return
     try {
       await api.delete(`/cotizaciones/${id}`)
       toast.success('Cotización eliminada')
@@ -198,6 +203,26 @@ export default function Cotizaciones() {
     } catch {
       toast.error('Error al eliminar')
     }
+  }
+
+  const handleDescargarPDF = (id: number) => {
+    const token = localStorage.getItem('token')
+    const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/pdf/cotizacion/${id}`
+    // Abrimos en nueva pestaña pasando el token como query param (solo para descarga directa)
+    const link = document.createElement('a')
+    link.href = url
+    link.target = '_blank'
+    // El token se enviará via header en fetch; abrimos con fetch y blob para navegadores modernos
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const objUrl = URL.createObjectURL(blob)
+        link.href = objUrl
+        link.download = `cotizacion-${id}.pdf`
+        link.click()
+        URL.revokeObjectURL(objUrl)
+      })
+      .catch(() => toast.error('Error al generar PDF'))
   }
 
   const getEstadoBadge = (estado: string) => {
@@ -220,6 +245,8 @@ export default function Cotizaciones() {
   const subtotal = calcularTotales()
   const iva = subtotal * 0.16
   const total = subtotal + iva
+
+  if (loading) return <SkeletonTable rows={5} cols={6} />
 
   return (
     <div className="space-y-4">
@@ -274,6 +301,9 @@ export default function Cotizaciones() {
                     <button className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded" title="Ver detalle">
                       <Eye className="h-4 w-4" />
                     </button>
+                    <button onClick={() => handleDescargarPDF(cotizacion.id)} className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded" title="Descargar PDF">
+                      <FileText className="h-4 w-4" />
+                    </button>
                     {cotizacion.estado === 'borrador' && (
                       <button onClick={() => handleCambiarEstado(cotizacion.id, 'enviada')} className="p-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded" title="Enviar"><Send className="h-4 w-4" /></button>
                     )}
@@ -287,7 +317,7 @@ export default function Cotizaciones() {
                       <button onClick={() => handleConvertir(cotizacion.id, cotizacion.folio)} className="p-1 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded" title="Convertir a Orden de Producción"><RefreshCw className="h-4 w-4" /></button>
                     )}
                     {cotizacion.estado !== 'convertida' && (
-                      <button onClick={() => handleEliminar(cotizacion.id)} className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                      <button onClick={() => setConfirmDelete(cotizacion.id)} className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
                     )}
                   </div>
                 </td>
@@ -346,6 +376,16 @@ export default function Cotizaciones() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        title="Eliminar cotización"
+        message="¿Estás seguro de que deseas eliminar esta cotización? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        type="danger"
+        onConfirm={() => confirmDelete !== null && handleEliminar(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+      />
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Nueva Cotización" size="xl">
         <form onSubmit={handleSubmit} className="space-y-4">

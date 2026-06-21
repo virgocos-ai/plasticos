@@ -1,19 +1,39 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
+import { Op } from 'sequelize';
 import { Cliente } from '../models';
+import { validate } from '../middleware/validate.middleware';
 
 const router = Router();
 
-// Obtener todos los clientes
+// Obtener todos los clientes (con paginación y búsqueda)
 router.get('/', async (req, res) => {
   try {
-    const { activo = true } = req.query;
-    const clientes = await Cliente.findAll({
-      where: { activo: activo === 'true' },
-      order: [['razon_social', 'ASC']]
-    });
-    res.json(clientes);
+    const { activo, search, page, limit } = req.query;
+    const where: any = {};
+
+    if (activo !== undefined) where.activo = activo === 'true';
+    if (search) {
+      where[Op.or] = [
+        { razon_social: { [Op.like]: `%${search}%` } },
+        { rfc: { [Op.like]: `%${search}%` } },
+        { nombre_comercial: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 0; // 0 = sin límite
+
+    const options: any = { where, order: [['razon_social', 'ASC']] };
+    if (limitNum > 0) {
+      options.limit = limitNum;
+      options.offset = (pageNum - 1) * limitNum;
+    }
+
+    const { count, rows } = await Cliente.findAndCountAll(options);
+    res.json({ data: rows, total: count, page: pageNum, limit: limitNum });
   } catch (error) {
-    console.error('Error al obtener clientes:', error);
+    logger.error('Error al obtener clientes:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener clientes' });
   }
 });
@@ -27,20 +47,22 @@ router.get('/:id', async (req, res) => {
     }
     res.json(cliente);
   } catch (error) {
-    console.error('Error al obtener cliente:', error);
+    logger.error('Error al obtener cliente:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener cliente' });
   }
 });
 
+const clienteSchema = {
+  rfc:          { required: true, minLength: 12, maxLength: 13, label: 'RFC' },
+  razon_social: { required: true, minLength: 3, maxLength: 200, label: 'Razón Social' },
+  email:        { type: 'email' as const, label: 'Email' },
+  codigo_postal:{ minLength: 5, maxLength: 5, label: 'Código Postal' },
+};
+
 // Crear cliente
-router.post('/', async (req, res) => {
+router.post('/', validate(clienteSchema), async (req, res) => {
   try {
     const clienteData = req.body;
-    
-    // Validar RFC
-    if (!clienteData.rfc || clienteData.rfc.length < 12) {
-      return res.status(400).json({ error: 'RFC inválido' });
-    }
 
     const existingCliente = await Cliente.findOne({ where: { rfc: clienteData.rfc } });
     if (existingCliente) {
@@ -50,7 +72,7 @@ router.post('/', async (req, res) => {
     const cliente = await Cliente.create(clienteData);
     res.status(201).json(cliente);
   } catch (error) {
-    console.error('Error al crear cliente:', error);
+    logger.error('Error al crear cliente:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear cliente' });
   }
 });
@@ -66,7 +88,7 @@ router.put('/:id', async (req, res) => {
     await cliente.update(req.body);
     res.json(cliente);
   } catch (error) {
-    console.error('Error al actualizar cliente:', error);
+    logger.error('Error al actualizar cliente:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al actualizar cliente' });
   }
 });
@@ -82,7 +104,7 @@ router.delete('/:id', async (req, res) => {
     await cliente.update({ activo: false });
     res.json({ message: 'Cliente eliminado correctamente' });
   } catch (error) {
-    console.error('Error al eliminar cliente:', error);
+    logger.error('Error al eliminar cliente:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al eliminar cliente' });
   }
 });

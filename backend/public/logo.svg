@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" fill="none">
+  <!-- Esfera entrelazada -->
+  <g transform="translate(10, 10)">
+    <!-- Aro verde exterior -->
+    <ellipse cx="70" cy="70" rx="58" ry="22" fill="none" stroke="#4CAF50" stroke-width="12" stroke-linecap="round"
+      transform="rotate(-35 70 70)" opacity="0.9"/>
+    <!-- Aro azul oscuro -->
+    <ellipse cx="70" cy="70" rx="58" ry="22" fill="none" stroke="#1565C0" stroke-width="12" stroke-linecap="round"
+      transform="rotate(85 70 70)" opacity="0.9"/>
+    <!-- Aro azul claro -->
+    <ellipse cx="70" cy="70" rx="58" ry="22" fill="none" stroke="#29B6F6" stroke-width="12" stroke-linecap="round"
+      transform="rotate(205 70 70)" opacity="0.9"/>
+    <!-- Solapas superpuestas para efecto entrelazado -->
+    <!-- Verde sobre azul oscuro (parte superior derecha) -->
+    <path d="M 98 32 Q 115 55 112 80" stroke="#4CAF50" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <!-- Azul claro sobre verde (parte inferior izquierda) -->
+    <path d="M 28 95 Q 20 72 35 52" stroke="#29B6F6" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <!-- Azul oscuro sobre azul claro (derecha) -->
+    <path d="M 118 72 Q 110 90 90 105" stroke="#1565C0" stroke-width="12" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- Texto SYSTEMA -->
+  <text x="158" y="78" font-family="'Arial Black', 'Arial', sans-serif" font-weight="900"
+    font-size="44" fill="#1A3A6B" letter-spacing="1">SYSTEMA</text>
+
+  <!-- Texto PLÁSTICOS -->
+  <text x="158" y="122" font-family="'Arial Black', 'Arial', sans-serif" font-weight="900"
+    font-size="44" fill="#1A3A6B" letter-spacing="1">PLÁSTICOS</text>
+
+  <!-- Texto subtítulo -->
+  <text x="159" y="142" font-family="'Arial', sans-serif" font-weight="400"
+    font-size="13" fill="#1A3A6B" letter-spacing="3">SOLUCIONES INTELIGENTES EN POLÍMEROS</text>
+</svg>

@@ -134,6 +134,16 @@ function ConfigField({
       </label>
       <div className="relative flex items-center gap-2">
         <div className="relative flex-1">
+          {type === 'password' && (
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          )}
           <input
             type={type === 'password' && !showPassword ? 'password' : type === 'tel' ? 'tel' : type === 'email' ? 'email' : type === 'number' ? 'number' : 'text'}
             value={value}

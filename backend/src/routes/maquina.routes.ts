@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { Maquina, OrdenProduccion } from '../models';
 
@@ -18,7 +19,7 @@ router.get('/', async (req, res) => {
     
     res.json(maquinas);
   } catch (error) {
-    console.error('Error al obtener máquinas:', error);
+    logger.error('Error al obtener máquinas:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener máquinas' });
   }
 });
@@ -43,7 +44,7 @@ router.get('/:id', async (req, res) => {
     
     res.json(maquina);
   } catch (error) {
-    console.error('Error al obtener máquina:', error);
+    logger.error('Error al obtener máquina:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener máquina' });
   }
 });
@@ -54,7 +55,7 @@ router.post('/', async (req, res) => {
     const maquina = await Maquina.create(req.body);
     res.status(201).json(maquina);
   } catch (error) {
-    console.error('Error al crear máquina:', error);
+    logger.error('Error al crear máquina:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear máquina' });
   }
 });
@@ -71,7 +72,7 @@ router.put('/:id', async (req, res) => {
     await maquina.update(req.body);
     res.json(maquina);
   } catch (error) {
-    console.error('Error al actualizar máquina:', error);
+    logger.error('Error al actualizar máquina:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al actualizar máquina' });
   }
 });
@@ -88,7 +89,7 @@ router.delete('/:id', async (req, res) => {
     await maquina.destroy();
     res.json({ message: 'Máquina eliminada correctamente' });
   } catch (error) {
-    console.error('Error al eliminar máquina:', error);
+    logger.error('Error al eliminar máquina:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al eliminar máquina' });
   }
 });
@@ -106,7 +107,7 @@ router.put('/:id/estado', async (req, res) => {
     await maquina.update({ estado });
     res.json(maquina);
   } catch (error) {
-    console.error('Error al cambiar estado:', error);
+    logger.error('Error al cambiar estado:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al cambiar estado' });
   }
 });
@@ -132,7 +133,7 @@ router.post('/:id/mantenimiento', async (req, res) => {
     
     res.json(maquina);
   } catch (error) {
-    console.error('Error al registrar mantenimiento:', error);
+    logger.error('Error al registrar mantenimiento:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al registrar mantenimiento' });
   }
 });

@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import path from 'path';
 import sequelize from './config/database';
 import { verifyToken, requireRole } from './middleware/auth.middleware';
 import logger from './utils/logger';
@@ -31,6 +32,11 @@ import ordenCompraRoutes from './routes/ordenCompra.routes';
 import calidadRoutes from './routes/calidad.routes';
 import usuarioRoutes from './routes/usuario.routes';
 import ganttRoutes from './routes/gantt.routes';
+import pdfRoutes from './routes/pdf.routes';
+import moldeRoutes from './routes/molde.routes';
+import recetaRoutes from './routes/receta.routes';
+import mantenimientoRoutes from './routes/mantenimiento.routes';
+import logisticaRoutes from './routes/logistica.routes';
 
 dotenv.config();
 
@@ -52,9 +58,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware de seguridad
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // allow inline scripts from Vite build
+}));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: process.env.NODE_ENV === 'production'
+    ? (process.env.CORS_ORIGIN || true)   // same-origin in prod
+    : (process.env.CORS_ORIGIN || 'http://localhost:5173'),
   credentials: true
 }));
 
@@ -118,17 +128,36 @@ app.use('/api/ordenes-compra', verifyToken, requireRole('admin', 'almacen'), ord
 app.use('/api/calidad', verifyToken, calidadRoutes);
 app.use('/api/usuarios', verifyToken, requireRole('admin'), usuarioRoutes);
 app.use('/api/gantt', verifyToken, ganttRoutes);
+app.use('/api/pdf', verifyToken, pdfRoutes);
+app.use('/api/moldes', verifyToken, moldeRoutes);
+app.use('/api/recetas', verifyToken, recetaRoutes);
+app.use('/api/mantenimiento', verifyToken, mantenimientoRoutes);
+app.use('/api/logistica', verifyToken, logisticaRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Error 404
-app.use((req, res) => {
-  logger.warn(`Ruta no encontrada: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({ error: 'Ruta no encontrada' });
-});
+// ── Producción: servir frontend estático ──────────────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  const clientPath = path.join(__dirname, '../public');
+  app.use(express.static(clientPath, { maxAge: '1d' }));
+  // SPA catch-all: cualquier ruta que no sea /api devuelve index.html
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ error: 'Ruta no encontrada' });
+    } else {
+      res.sendFile(path.join(clientPath, 'index.html'));
+    }
+  });
+} else {
+  // Desarrollo: 404 JSON
+  app.use((req, res) => {
+    logger.warn(`Ruta no encontrada: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: 'Ruta no encontrada' });
+  });
+}
 
 // Manejo de errores global
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -150,10 +179,15 @@ const startServer = async () => {
     await sequelize.authenticate();
     logger.info('Conexión a MySQL establecida correctamente.');
     
-    // Sincronizar modelos (en desarrollo) - sync() sin alter para evitar errores de FK en MySQL
+    // Sincronizar modelos
+    // - development: alter:true (aplica cambios de columna)
+    // - production:  solo crear tablas nuevas, sin ALTER (más seguro)
     if (process.env.NODE_ENV === 'development') {
       await sequelize.sync({ alter: true });
-      logger.info('Modelos sincronizados.');
+      logger.info('Modelos sincronizados (alter).');
+    } else {
+      await sequelize.sync({ force: false });
+      logger.info('Modelos sincronizados (create if not exists).');
     }
     
     app.listen(PORT, () => {

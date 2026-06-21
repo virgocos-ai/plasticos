@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import { REGIMENES_FISCALES } from '../constants/satCatalogs'
@@ -20,6 +21,7 @@ interface Proveedor {
 export default function Proveedores() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingProveedor, setEditingProveedor] = useState<Proveedor | null>(null)
@@ -41,13 +43,15 @@ export default function Proveedores() {
   })
 
   useEffect(() => {
-    loadProveedores()
-  }, [])
+    const timer = setTimeout(() => loadProveedores(searchTerm), 350)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
-  const loadProveedores = async () => {
+  const loadProveedores = async (search = '') => {
     try {
-      const response = await api.get('/proveedores')
-      setProveedores(response.data)
+      const params = search ? `?search=${encodeURIComponent(search)}` : ''
+      const response = await api.get(`/proveedores${params}`)
+      setProveedores(response.data.data ?? response.data)
     } catch (error) {
       toast.error('Error al cargar proveedores')
     } finally {
@@ -57,6 +61,7 @@ export default function Proveedores() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSaving(true)
     try {
       if (editingProveedor) {
         await api.put(`/proveedores/${editingProveedor.id}`, formData)
@@ -68,8 +73,10 @@ export default function Proveedores() {
       setShowForm(false)
       setEditingProveedor(null)
       loadProveedores()
-    } catch (error) {
-      toast.error('Error al guardar proveedor')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Error al guardar proveedor')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -109,6 +116,8 @@ export default function Proveedores() {
     p.razon_social.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.rfc.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  if (loading && proveedores.length === 0) return <SkeletonTable rows={6} cols={5} />
 
   if (showForm) {
     return (
@@ -256,9 +265,10 @@ export default function Proveedores() {
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              disabled={saving}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Guardar
+              {saving ? 'Guardando...' : 'Guardar'}
             </button>
             <button
               type="button"

@@ -3,18 +3,20 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Factory, User, Calendar, Clock, Wrench,
   CheckCircle, XCircle, PlayCircle, Package, AlertTriangle,
-  ClipboardList, ChevronRight, RefreshCw
+  ClipboardList, ChevronRight, RefreshCw, Printer
 } from 'lucide-react'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
+import ConfirmDialog from '../components/ConfirmDialog'
+import Modal from '../components/Modal'
 
 interface OrdenDetalle {
   id: number
   folio: string
   fecha_orden: string
   fecha_entrega: string
-  estado: 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
-  prioridad: 'baja' | 'normal' | 'alta' | 'urgente'
+  estado: 'pendiente' | 'en_produccion' | 'completada' | 'cancelada'
+  prioridad: 'baja' | 'media' | 'alta' | 'urgente'
   maquina_asignada: string
   turno: string
   observaciones: string
@@ -37,15 +39,15 @@ interface OrdenDetalle {
 }
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
-  pendiente:   { label: 'Pendiente',   color: 'text-yellow-700', bg: 'bg-yellow-100', icon: Clock },
-  en_proceso:  { label: 'En Proceso',  color: 'text-blue-700',   bg: 'bg-blue-100',   icon: PlayCircle },
-  completada:  { label: 'Completada',  color: 'text-green-700',  bg: 'bg-green-100',  icon: CheckCircle },
-  cancelada:   { label: 'Cancelada',   color: 'text-red-700',    bg: 'bg-red-100',    icon: XCircle },
+  pendiente:     { label: 'Pendiente',   color: 'text-yellow-700', bg: 'bg-yellow-100', icon: Clock },
+  en_produccion: { label: 'En Proceso',  color: 'text-blue-700',   bg: 'bg-blue-100',   icon: PlayCircle },
+  completada:    { label: 'Completada',  color: 'text-green-700',  bg: 'bg-green-100',  icon: CheckCircle },
+  cancelada:     { label: 'Cancelada',   color: 'text-red-700',    bg: 'bg-red-100',    icon: XCircle },
 }
 
 const PRIORIDAD_CONFIG: Record<string, { label: string; color: string }> = {
   baja:    { label: 'Baja',    color: 'text-gray-500' },
-  normal:  { label: 'Normal',  color: 'text-blue-600' },
+  media:   { label: 'Media',   color: 'text-blue-600' },
   alta:    { label: 'Alta',    color: 'text-orange-600' },
   urgente: { label: 'Urgente', color: 'text-red-600' },
 }
@@ -56,6 +58,17 @@ export default function OrdenProduccionDetallePage() {
   const [orden, setOrden] = useState<OrdenDetalle | null>(null)
   const [loading, setLoading] = useState(true)
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
+  const [confirmEstado, setConfirmEstado] = useState<{ estado: string; mensaje: string } | null>(null)
+  const [showAvance, setShowAvance] = useState(false)
+  const [savingAvance, setSavingAvance] = useState(false)
+  const [avanceData, setAvanceData] = useState<Record<number, {
+    cantidad_producida: string
+    cantidad_defectuosa: string
+    temperatura_inyeccion_real: string
+    presion_inyeccion_real: string
+    tiempo_ciclo_real_seg: string
+    ciclos_completados: string
+  }>>({})
 
   useEffect(() => { loadOrden() }, [id])
 
@@ -70,15 +83,20 @@ export default function OrdenProduccionDetallePage() {
     } finally { setLoading(false) }
   }
 
+  const mensajesEstado: Record<string, string> = {
+    en_produccion: '¿Iniciar esta orden de producción?',
+    completada: '¿Marcar como completada? Asegúrate de que la producción está lista.',
+    cancelada: '¿Cancelar esta orden? Esta acción no se puede deshacer.'
+  }
+
+  const solicitarCambioEstado = (nuevoEstado: string) => {
+    setConfirmEstado({ estado: nuevoEstado, mensaje: mensajesEstado[nuevoEstado] })
+  }
+
   const handleCambiarEstado = async (nuevoEstado: string) => {
     if (!orden) return
-    const mensajes: Record<string, string> = {
-      en_proceso: '¿Iniciar esta orden de producción?',
-      completada: '¿Marcar como completada?',
-      cancelada: '¿Cancelar esta orden? Esta acción no se puede deshacer.'
-    }
-    if (!confirm(mensajes[nuevoEstado])) return
     setCambiandoEstado(true)
+    setConfirmEstado(null)
     try {
       await api.put(`/ordenes-produccion/${id}/estado`, { estado: nuevoEstado })
       toast.success('Estado actualizado')
@@ -86,6 +104,66 @@ export default function OrdenProduccionDetallePage() {
     } catch {
       toast.error('Error al cambiar estado')
     } finally { setCambiandoEstado(false) }
+  }
+
+  const openAvance = () => {
+    if (!orden) return
+    const init: typeof avanceData = {}
+    orden.detalles.forEach(d => {
+      init[d.id] = {
+        cantidad_producida: String(d.cantidad_producida || ''),
+        cantidad_defectuosa: String(d.cantidad_defectuosa || ''),
+        temperatura_inyeccion_real: String(d.temperatura_inyeccion_real || ''),
+        presion_inyeccion_real: String(d.presion_inyeccion_real || ''),
+        tiempo_ciclo_real_seg: String(d.tiempo_ciclo_real_seg || ''),
+        ciclos_completados: String((d as any).ciclos_completados || ''),
+      }
+    })
+    setAvanceData(init)
+    setShowAvance(true)
+  }
+
+  const handleRegistrarAvance = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!orden) return
+    setSavingAvance(true)
+    try {
+      const detalles = Object.entries(avanceData).map(([detalle_id, vals]) => ({
+        detalle_id: Number(detalle_id),
+        cantidad_producida: vals.cantidad_producida ? Number(vals.cantidad_producida) : undefined,
+        cantidad_defectuosa: vals.cantidad_defectuosa ? Number(vals.cantidad_defectuosa) : undefined,
+        temperatura_inyeccion_real: vals.temperatura_inyeccion_real ? Number(vals.temperatura_inyeccion_real) : undefined,
+        presion_inyeccion_real: vals.presion_inyeccion_real ? Number(vals.presion_inyeccion_real) : undefined,
+        tiempo_ciclo_real_seg: vals.tiempo_ciclo_real_seg ? Number(vals.tiempo_ciclo_real_seg) : undefined,
+        ciclos_completados: vals.ciclos_completados ? Number(vals.ciclos_completados) : undefined,
+      }))
+      const res = await api.post(`/ordenes-produccion/${id}/registrar-avance`, { detalles })
+      toast.success(`Avance registrado. ${res.data.materiales_descontados} material(es) descontados del inventario.`)
+      setShowAvance(false)
+      loadOrden()
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Error al registrar avance')
+    } finally { setSavingAvance(false) }
+  }
+
+  const updAvance = (detId: number, field: string, value: string) => {
+    setAvanceData(prev => ({ ...prev, [detId]: { ...prev[detId], [field]: value } }))
+  }
+
+  const handleImprimirPDF = () => {
+    const token = localStorage.getItem('token')
+    const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/pdf/orden-produccion/${id}`
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const objUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = objUrl
+        a.download = `op-${orden?.folio || id}.pdf`
+        a.click()
+        URL.revokeObjectURL(objUrl)
+      })
+      .catch(() => toast.error('Error al generar PDF'))
   }
 
   if (loading) {
@@ -134,20 +212,32 @@ export default function OrdenProduccionDetallePage() {
             <ArrowLeft className="h-4 w-4" /> Volver
           </button>
 
+          <button onClick={handleImprimirPDF}
+            className="flex items-center gap-1.5 text-sm border border-rose-200 text-rose-700 px-3 py-2 rounded-md hover:bg-rose-50">
+            <Printer className="h-4 w-4" /> PDF
+          </button>
+
+          {(orden.estado === 'en_produccion' || orden.estado === 'pendiente') && (
+            <button onClick={openAvance}
+              className="flex items-center gap-1.5 text-sm bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+              <ClipboardList className="h-4 w-4" /> Registrar Avance
+            </button>
+          )}
+
           {orden.estado === 'pendiente' && (
-            <button onClick={() => handleCambiarEstado('en_proceso')} disabled={cambiandoEstado}
+            <button onClick={() => solicitarCambioEstado('en_produccion')} disabled={cambiandoEstado}
               className="flex items-center gap-1.5 text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50">
               <PlayCircle className="h-4 w-4" /> Iniciar
             </button>
           )}
-          {orden.estado === 'en_proceso' && (
-            <button onClick={() => handleCambiarEstado('completada')} disabled={cambiandoEstado}
+          {orden.estado === 'en_produccion' && (
+            <button onClick={() => solicitarCambioEstado('completada')} disabled={cambiandoEstado}
               className="flex items-center gap-1.5 text-sm bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50">
               <CheckCircle className="h-4 w-4" /> Completar
             </button>
           )}
-          {(orden.estado === 'pendiente' || orden.estado === 'en_proceso') && (
-            <button onClick={() => handleCambiarEstado('cancelada')} disabled={cambiandoEstado}
+          {(orden.estado === 'pendiente' || orden.estado === 'en_produccion') && (
+            <button onClick={() => solicitarCambioEstado('cancelada')} disabled={cambiandoEstado}
               className="flex items-center gap-1.5 text-sm bg-red-600 text-white px-3 py-2 rounded-md hover:bg-red-700 disabled:opacity-50">
               <XCircle className="h-4 w-4" /> Cancelar
             </button>
@@ -320,10 +410,10 @@ export default function OrdenProduccionDetallePage() {
             {/* Estado steps */}
             <div className="pt-3 border-t">
               <p className="text-xs text-gray-500 mb-3">Flujo de estado</p>
-              {['pendiente', 'en_proceso', 'completada'].map((est, i) => {
+              {['pendiente', 'en_produccion', 'completada'].map((est, i) => {
                 const conf = ESTADO_CONFIG[est]
                 const Icon = conf.icon
-                const states = ['pendiente', 'en_proceso', 'completada', 'cancelada']
+                const states = ['pendiente', 'en_produccion', 'completada', 'cancelada']
                 const currentIdx = states.indexOf(orden.estado)
                 const estIdx = states.indexOf(est)
                 const done = orden.estado === 'cancelada' ? false : currentIdx > estIdx
@@ -352,6 +442,91 @@ export default function OrdenProduccionDetallePage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmEstado !== null}
+        title="Cambiar estado"
+        message={confirmEstado?.mensaje || ''}
+        confirmText="Confirmar"
+        type={confirmEstado?.estado === 'cancelada' ? 'danger' : 'info'}
+        onConfirm={() => confirmEstado && handleCambiarEstado(confirmEstado.estado)}
+        onClose={() => setConfirmEstado(null)}
+      />
+
+      {/* Modal registrar avance de producción */}
+      <Modal isOpen={showAvance} onClose={() => setShowAvance(false)} title="Registrar Avance de Producción" size="xl">
+        <form onSubmit={handleRegistrarAvance} className="space-y-4">
+          <p className="text-xs text-indigo-700 bg-indigo-50 rounded p-2">
+            💡 El sistema descontará automáticamente el material consumido del inventario basado en el peso por pieza registrado.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Solicitada</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Producida *</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Defectuosa</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Temp. (°C)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Presión (bar)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Ciclo (s)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {orden.detalles.map(det => {
+                  const av = avanceData[det.id] || {}
+                  return (
+                    <tr key={det.id}>
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-gray-900">{det.producto?.nombre || '—'}</p>
+                        <p className="text-xs text-gray-400">{det.material?.nombre}</p>
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-500">{Number(det.cantidad_solicitada).toLocaleString('es-MX')}</td>
+                      <td className="px-3 py-2">
+                        <input type="number" min={0} step="1"
+                          className="w-24 border border-indigo-300 rounded p-1 text-sm text-right focus:ring-1 focus:ring-indigo-500 outline-none"
+                          value={av.cantidad_producida || ''}
+                          onChange={e => updAvance(det.id, 'cantidad_producida', e.target.value)} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" min={0} step="1"
+                          className="w-20 border border-gray-300 rounded p-1 text-sm text-right"
+                          value={av.cantidad_defectuosa || ''}
+                          onChange={e => updAvance(det.id, 'cantidad_defectuosa', e.target.value)} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" step="0.1"
+                          className="w-20 border border-gray-300 rounded p-1 text-sm text-right"
+                          value={av.temperatura_inyeccion_real || ''}
+                          onChange={e => updAvance(det.id, 'temperatura_inyeccion_real', e.target.value)} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" step="0.1"
+                          className="w-20 border border-gray-300 rounded p-1 text-sm text-right"
+                          value={av.presion_inyeccion_real || ''}
+                          onChange={e => updAvance(det.id, 'presion_inyeccion_real', e.target.value)} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" step="0.1"
+                          className="w-20 border border-gray-300 rounded p-1 text-sm text-right"
+                          value={av.tiempo_ciclo_real_seg || ''}
+                          onChange={e => updAvance(det.id, 'tiempo_ciclo_real_seg', e.target.value)} />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <button type="button" onClick={() => setShowAvance(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50">Cancelar</button>
+            <button type="submit" disabled={savingAvance} className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
+              {savingAvance && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+              Guardar Avance
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Tabla de detalles */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

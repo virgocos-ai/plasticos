@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { OrdenProduccion, OrdenProduccionDetalle, Cliente, Producto, Material, Usuario, Maquina, Operador } from '../models';
+import { OrdenProduccion, OrdenProduccionDetalle, Cliente, Producto, Material, Usuario, Maquina, Operador, InventarioMovimiento } from '../models';
+import sequelize from '../config/database';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -24,7 +26,7 @@ router.get('/', async (req, res) => {
     const { count, rows: ordenes } = await OrdenProduccion.findAndCountAll({
       where,
       include: [
-        { model: Cliente, as: 'cliente', required: !!search ? false : false,
+        { model: Cliente, as: 'cliente', required: false,
           ...(search ? { where: { razon_social: { [Op.like]: `%${search}%` } }, required: false } : {})
         },
         { model: Usuario, as: 'usuario', required: false, attributes: ['id', 'nombre'] },
@@ -38,8 +40,8 @@ router.get('/', async (req, res) => {
     });
 
     res.json({ data: ordenes, total: count, page: pageNum, limit: limitNum, totalPages: Math.ceil(count / limitNum) });
-  } catch (error) {
-    console.error('Error al obtener órdenes:', error);
+  } catch (error: any) {
+    logger.error('Error al obtener órdenes', { error: error.message });
     res.status(500).json({ error: 'Error al obtener órdenes de producción' });
   }
 });
@@ -51,8 +53,10 @@ router.get('/:id', async (req, res) => {
       include: [
         { model: Cliente, as: 'cliente' },
         { model: Usuario, as: 'usuario' },
-        { 
-          model: OrdenProduccionDetalle, 
+        { model: Maquina, as: 'maquina' },
+        { model: Operador, as: 'operador' },
+        {
+          model: OrdenProduccionDetalle,
           as: 'detalles',
           include: [
             { model: Producto, as: 'producto' },
@@ -61,21 +65,18 @@ router.get('/:id', async (req, res) => {
         }
       ]
     });
-    
-    if (!orden) {
-      return res.status(404).json({ error: 'Orden no encontrada' });
-    }
-    
+
+    if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
     res.json(orden);
-  } catch (error) {
-    console.error('Error al obtener orden:', error);
+  } catch (error: any) {
+    logger.error('Error al obtener orden', { error: error.message });
     res.status(500).json({ error: 'Error al obtener orden de producción' });
   }
 });
 
-// Crear orden de producción
+// Crear orden de producción (con folio atómico)
 router.post('/', async (req, res) => {
-  const transaction = await (await import('../config/database')).default.transaction();
+  const transaction = await sequelize.transaction();
   try {
     const { detalles, ...ordenData } = req.body;
 
@@ -84,10 +85,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Debe incluir al menos un producto en los detalles' });
     }
 
-    // Generar folio de forma atómica dentro de la transacción
     const fecha = new Date();
-    const anio = fecha.getFullYear().toString().substr(-2);
-    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+    const anio = fecha.getFullYear().toString().slice(-2);
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
     const prefix = `OP${anio}${mes}`;
 
     const ultimaOrden = await OrdenProduccion.findOne({
@@ -97,10 +97,8 @@ router.post('/', async (req, res) => {
       transaction
     });
 
-    const consecutivo = ultimaOrden
-      ? parseInt(ultimaOrden.folio.slice(-4)) + 1
-      : 1;
-    const folio = `${prefix}${consecutivo.toString().padStart(4, '0')}`;
+    const consecutivo = ultimaOrden ? parseInt(ultimaOrden.folio.slice(-4)) + 1 : 1;
+    const folio = `${prefix}${String(consecutivo).padStart(4, '0')}`;
 
     const orden = await OrdenProduccion.create({
       ...ordenData,
@@ -110,20 +108,16 @@ router.post('/', async (req, res) => {
       usuario_id: (req as any).user?.id || ordenData.usuario_id
     }, { transaction });
 
-    // Crear detalles dentro de la misma transacción
     await OrdenProduccionDetalle.bulkCreate(
-      detalles.map((det: any) => ({
-        ...det,
-        orden_id: orden.id
-      })),
+      detalles.map((det: any) => ({ ...det, orden_id: orden.id })),
       { transaction }
     );
 
     await transaction.commit();
     res.status(201).json(orden);
-  } catch (error) {
+  } catch (error: any) {
     await transaction.rollback();
-    console.error('Error al crear orden:', error);
+    logger.error('Error al crear orden', { error: error.message });
     res.status(500).json({ error: 'Error al crear orden de producción' });
   }
 });
@@ -133,41 +127,104 @@ router.put('/:id/estado', async (req, res) => {
   try {
     const { estado } = req.body;
     const orden = await OrdenProduccion.findByPk(req.params.id);
-    
-    if (!orden) {
-      return res.status(404).json({ error: 'Orden no encontrada' });
-    }
-    
+    if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
     await orden.update({ estado });
     res.json(orden);
-  } catch (error) {
-    console.error('Error al actualizar orden:', error);
+  } catch (error: any) {
+    logger.error('Error al actualizar estado orden', { error: error.message });
     res.status(500).json({ error: 'Error al actualizar orden' });
   }
 });
 
-// Actualizar producción (cantidades reales)
-router.put('/:id/produccion', async (req, res) => {
+// ─── Registrar avance de producción ───────────────────────────────────────────
+// Actualiza cantidades reales en cada detalle Y descuenta material del inventario
+router.post('/:id/registrar-avance', async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const { detalles } = req.body;
-    
-    for (const det of detalles) {
-      await OrdenProduccionDetalle.update(
-        {
-          cantidad_producida: det.cantidad_producida,
-          cantidad_defectuosa: det.cantidad_defectuosa,
-          temperatura_inyeccion_real: det.temperatura_inyeccion_real,
-          presion_inyeccion_real: det.presion_inyeccion_real,
-          tiempo_ciclo_real_seg: det.tiempo_ciclo_real_seg
-        },
-        { where: { id: det.id } }
-      );
+    const { detalles } = req.body; // [{ detalle_id, cantidad_producida, cantidad_defectuosa, temperatura_inyeccion_real, presion_inyeccion_real, tiempo_ciclo_real_seg, ciclos_completados, observaciones }]
+    const usuario_id = (req as any).user?.id;
+
+    if (!detalles || detalles.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Detalles requeridos' });
     }
-    
-    res.json({ message: 'Producción actualizada correctamente' });
-  } catch (error) {
-    console.error('Error al actualizar producción:', error);
-    res.status(500).json({ error: 'Error al actualizar producción' });
+
+    const orden = await OrdenProduccion.findByPk(req.params.id, { transaction });
+    if (!orden) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Orden no encontrada' });
+    }
+
+    if ((orden as any).estado === 'cancelada' || (orden as any).estado === 'completada') {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'No se puede registrar avance en una orden cancelada o ya completada' });
+    }
+
+    const movimientos: any[] = [];
+
+    for (const upd of detalles) {
+      const det = await OrdenProduccionDetalle.findByPk(upd.detalle_id, { transaction });
+      if (!det) continue;
+
+      const produccionAnterior = parseFloat((det as any).cantidad_producida?.toString() || '0');
+      const nuevaProduccion = parseFloat(upd.cantidad_producida?.toString() || '0');
+      const delta = Math.max(0, nuevaProduccion - produccionAnterior);
+
+      // Descontar material si hay producción adicional
+      if (delta > 0 && (det as any).material_id && (det as any).peso_pieza_gr) {
+        const kgConsumidos = (delta * parseFloat((det as any).peso_pieza_gr.toString())) / 1000;
+        const material = await Material.findByPk((det as any).material_id, { transaction });
+        if (material) {
+          const stockActual = parseFloat((material as any).stock_actual_kg?.toString() || '0');
+          await material.update(
+            { stock_actual_kg: Math.max(0, stockActual - kgConsumidos) },
+            { transaction }
+          );
+          movimientos.push({
+            material_id: (det as any).material_id,
+            tipo_movimiento: 'salida',
+            cantidad: kgConsumidos,
+            motivo: `Consumo producción OP ${(orden as any).folio}`,
+            referencia_id: (orden as any).id,
+            referencia_tipo: 'orden_produccion',
+            usuario_id,
+            fecha_movimiento: new Date()
+          });
+        }
+      }
+
+      // Calcular peso total de material consumido
+      let pesoTotalMaterial = parseFloat((det as any).peso_total_material_kg?.toString() || '0');
+      if (delta > 0 && (det as any).peso_pieza_gr) {
+        pesoTotalMaterial += (delta * parseFloat((det as any).peso_pieza_gr.toString())) / 1000;
+      }
+
+      await det.update({
+        cantidad_producida: nuevaProduccion,
+        cantidad_defectuosa: upd.cantidad_defectuosa ?? (det as any).cantidad_defectuosa,
+        temperatura_inyeccion_real: upd.temperatura_inyeccion_real ?? (det as any).temperatura_inyeccion_real,
+        presion_inyeccion_real: upd.presion_inyeccion_real ?? (det as any).presion_inyeccion_real,
+        tiempo_ciclo_real_seg: upd.tiempo_ciclo_real_seg ?? (det as any).tiempo_ciclo_real_seg,
+        ciclos_completados: upd.ciclos_completados ?? (det as any).ciclos_completados,
+        peso_total_material_kg: pesoTotalMaterial,
+        observaciones: upd.observaciones ?? (det as any).observaciones,
+      }, { transaction });
+    }
+
+    if (movimientos.length > 0) {
+      await InventarioMovimiento.bulkCreate(movimientos, { transaction });
+    }
+
+    await transaction.commit();
+    logger.info(`Avance OP ${(orden as any).folio} registrado. Material descontado para ${movimientos.length} material(es).`);
+    res.json({
+      message: 'Avance registrado correctamente',
+      materiales_descontados: movimientos.length
+    });
+  } catch (error: any) {
+    await transaction.rollback();
+    logger.error('Error al registrar avance de producción', { error: error.message });
+    res.status(500).json({ error: 'Error al registrar avance' });
   }
 });
 

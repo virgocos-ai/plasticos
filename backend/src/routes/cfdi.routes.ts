@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -111,7 +112,7 @@ router.post('/generar-xml', async (req, res) => {
       mensaje: 'XML generado. Debe ser enviado a un PAC para timbrado.'
     });
   } catch (error) {
-    console.error('Error al generar XML:', error);
+    logger.error('Error al generar XML:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al generar XML del CFDI' });
   }
 });
@@ -131,7 +132,7 @@ router.get('/validar-rfc/:rfc', async (req, res) => {
       tipo: rfc.length === 13 ? 'persona_moral' : 'persona_fisica'
     });
   } catch (error) {
-    console.error('Error al validar RFC:', error);
+    logger.error('Error al validar RFC:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al validar RFC' });
   }
 });

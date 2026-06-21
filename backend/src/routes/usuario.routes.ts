@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { Usuario } from '../models';
@@ -13,7 +14,7 @@ router.get('/', async (req, res) => {
     });
     res.json(usuarios);
   } catch (error) {
-    console.error('Error al obtener usuarios:', error);
+    logger.error('Error al obtener usuarios:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener usuarios' });
   }
 });
@@ -60,7 +61,7 @@ router.post('/', async (req, res) => {
       activo: usuario.activo
     });
   } catch (error) {
-    console.error('Error al crear usuario:', error);
+    logger.error('Error al crear usuario:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear usuario' });
   }
 });

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { Operador, OrdenProduccion } from '../models';
@@ -20,7 +21,7 @@ router.get('/', async (req, res) => {
     
     res.json(operadores);
   } catch (error) {
-    console.error('Error al obtener operadores:', error);
+    logger.error('Error al obtener operadores:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener operadores' });
   }
 });
@@ -45,7 +46,7 @@ router.get('/:id', async (req, res) => {
     
     res.json(operador);
   } catch (error) {
-    console.error('Error al obtener operador:', error);
+    logger.error('Error al obtener operador:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener operador' });
   }
 });
@@ -56,7 +57,7 @@ router.post('/', async (req, res) => {
     const operador = await Operador.create(req.body);
     res.status(201).json(operador);
   } catch (error) {
-    console.error('Error al crear operador:', error);
+    logger.error('Error al crear operador:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear operador' });
   }
 });
@@ -73,7 +74,7 @@ router.put('/:id', async (req, res) => {
     await operador.update(req.body);
     res.json(operador);
   } catch (error) {
-    console.error('Error al actualizar operador:', error);
+    logger.error('Error al actualizar operador:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al actualizar operador' });
   }
 });
@@ -90,7 +91,7 @@ router.delete('/:id', async (req, res) => {
     await operador.destroy();
     res.json({ message: 'Operador eliminado correctamente' });
   } catch (error) {
-    console.error('Error al eliminar operador:', error);
+    logger.error('Error al eliminar operador:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al eliminar operador' });
   }
 });
@@ -108,7 +109,7 @@ router.put('/:id/estado', async (req, res) => {
     await operador.update({ estado });
     res.json(operador);
   } catch (error) {
-    console.error('Error al cambiar estado:', error);
+    logger.error('Error al cambiar estado:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al cambiar estado' });
   }
 });
@@ -132,7 +133,7 @@ router.get('/:id/produccion', async (req, res) => {
     
     res.json(ordenes);
   } catch (error) {
-    console.error('Error al obtener producción:', error);
+    logger.error('Error al obtener producción:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener producción' });
   }
 });

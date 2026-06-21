@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Factory } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 
@@ -31,13 +32,14 @@ const tiposMaterial = {
 export default function Materiales() {
   const [materiales, setMateriales] = useState<Material[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
   const [formData, setFormData] = useState({
     codigo: '',
     nombre: '',
-    tipo: 'resina' as const,
+    tipo: 'resina' as 'resina' | 'masterbatch' | 'aditivo' | 'pigmento' | 'carga',
     unidad_medida: 'KGM',
     peso_gr: 0,
     precio_kg: 0,
@@ -49,13 +51,15 @@ export default function Materiales() {
   })
 
   useEffect(() => {
-    loadMateriales()
-  }, [])
+    const timer = setTimeout(() => loadMateriales(searchTerm), 350)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
-  const loadMateriales = async () => {
+  const loadMateriales = async (search = '') => {
     try {
-      const response = await api.get('/materiales')
-      setMateriales(response.data)
+      const params = search ? `?search=${encodeURIComponent(search)}` : ''
+      const response = await api.get(`/materiales${params}`)
+      setMateriales(response.data.data ?? response.data)
     } catch (error) {
       toast.error('Error al cargar materiales')
     } finally {
@@ -65,6 +69,7 @@ export default function Materiales() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSaving(true)
     try {
       if (editingMaterial) {
         await api.put(`/materiales/${editingMaterial.id}`, formData)
@@ -78,7 +83,9 @@ export default function Materiales() {
       resetForm()
       loadMateriales()
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Error al guardar material')
+      toast.error(error?.response?.data?.error || 'Error al guardar material')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -131,6 +138,8 @@ export default function Materiales() {
     m.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.codigo.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  if (loading && materiales.length === 0) return <SkeletonTable rows={6} cols={5} />
 
   if (showForm) {
     return (
@@ -280,9 +289,10 @@ export default function Materiales() {
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              disabled={saving}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Guardar
+              {saving ? 'Guardando...' : 'Guardar'}
             </button>
             <button
               type="button"

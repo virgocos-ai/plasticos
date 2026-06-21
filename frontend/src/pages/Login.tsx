@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Factory } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import { useAuthStore } from '../store/authStore'
@@ -23,8 +22,9 @@ export default function Login() {
       setAuth(token, usuario)
       toast.success('¡Bienvenido!')
       navigate('/')
-    } catch (error) {
-      toast.error('Credenciales inválidas')
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || 'Credenciales inválidas'
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -34,11 +34,8 @@ export default function Login() {
     <div className="flex min-h-screen flex-col justify-center bg-gray-50 py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <Factory className="h-12 w-12 text-blue-600" />
+          <img src="/logo.svg" alt="Systema Plásticos" className="h-16 w-auto" />
         </div>
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-          Plasticos ERP
-        </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Sistema de Gestión - Normativa Mexicana CFDI
         </p>

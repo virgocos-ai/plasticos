@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { OrdenCompra, OrdenCompraDetalle, Proveedor, Material } from '../models';
+import { OrdenCompra, OrdenCompraDetalle, Proveedor, Material, InventarioMovimiento } from '../models';
 import sequelize from '../config/database';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -189,50 +190,106 @@ router.put('/:id/estado', async (req, res) => {
   }
 });
 
-// Registrar recepción de material
+// Registrar recepción de material → actualiza stock automáticamente
 router.post('/:id/recepcion', async (req, res) => {
   const transaction = await sequelize.transaction();
-  
+
   try {
     const { detalles } = req.body;
+    const usuario_id = (req as any).user?.id;
+
+    if (!detalles || detalles.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Detalles de recepción requeridos' });
+    }
+
     const orden = await OrdenCompra.findByPk(req.params.id, {
       include: [{ model: OrdenCompraDetalle, as: 'detalles' }]
     });
-    
+
     if (!orden) {
       await transaction.rollback();
       return res.status(404).json({ error: 'Orden no encontrada' });
     }
-    
-    // Actualizar cantidades recibidas
-    for (const det of detalles) {
-      await OrdenCompraDetalle.update(
-        { 
-          cantidad_recibida: det.cantidad_recibida,
-          estado: det.cantidad_recibida >= det.cantidad_solicitada ? 'completado' : 'parcial'
-        },
-        { where: { id: det.id }, transaction }
-      );
+
+    if (!['enviada', 'parcial'].includes((orden as any).estado)) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Solo se pueden recepcionar órdenes enviadas o parciales' });
     }
-    
-    // Verificar si todos los detalles están completos
+
+    const movimientos: any[] = [];
+
+    for (const det of detalles) {
+      const cantidadRecibida = parseFloat(det.cantidad_recibida) || 0;
+      if (cantidadRecibida < 0) continue;
+
+      // Actualizar detalle de la OC
+      if (det.id) {
+        const detOrden = await OrdenCompraDetalle.findByPk(det.id);
+        if (detOrden) {
+          const yaRecibido = parseFloat((detOrden as any).cantidad_recibida?.toString() || '0');
+          const totalRecibido = yaRecibido + cantidadRecibida;
+          await detOrden.update({
+            cantidad_recibida: totalRecibido,
+          }, { transaction });
+        }
+      }
+
+      // ── Actualizar stock del material ──
+      if (det.material_id && cantidadRecibida > 0) {
+        const material = await Material.findByPk(det.material_id, { transaction });
+        if (material) {
+          const stockActual = parseFloat((material as any).stock_actual_kg?.toString() || '0');
+          await material.update(
+            { stock_actual_kg: stockActual + cantidadRecibida },
+            { transaction }
+          );
+
+          // Registrar movimiento de inventario
+          movimientos.push({
+            material_id: det.material_id,
+            tipo_movimiento: 'entrada',
+            cantidad: cantidadRecibida,
+            motivo: `Recepción OC ${(orden as any).folio}`,
+            referencia_id: orden.id,
+            referencia_tipo: 'orden_compra',
+            usuario_id,
+            fecha_movimiento: new Date()
+          });
+        }
+      }
+    }
+
+    // Registrar movimientos de inventario en bulk
+    if (movimientos.length > 0) {
+      await InventarioMovimiento.bulkCreate(movimientos, { transaction });
+    }
+
+    // Verificar si todos los detalles están completos para cerrar la OC
     const detallesOrden = await OrdenCompraDetalle.findAll({
-      where: { orden_compra_id: orden.id }
+      where: { orden_compra_id: orden.id },
+      transaction
     });
-    
-    const todosCompletados = detallesOrden.every(d => 
-      parseFloat(d.cantidad_recibida.toString()) >= parseFloat(d.cantidad_solicitada.toString())
+
+    const todosCompletados = detallesOrden.every(d =>
+      parseFloat((d as any).cantidad_recibida?.toString() || '0') >= parseFloat((d as any).cantidad_solicitada?.toString() || '0')
     );
-    
-    await orden.update({
-      estado: todosCompletados ? 'completada' : 'parcial'
-    }, { transaction });
-    
+
+    await orden.update(
+      { estado: todosCompletados ? 'completada' : 'parcial' },
+      { transaction }
+    );
+
     await transaction.commit();
-    res.json({ message: 'Recepción registrada correctamente' });
-  } catch (error) {
+
+    logger.info(`Recepción OC ${(orden as any).folio} registrada. Stock actualizado para ${movimientos.length} materiales.`);
+    res.json({
+      message: `Recepción registrada. Stock actualizado para ${movimientos.length} material(es).`,
+      estado_orden: todosCompletados ? 'completada' : 'parcial'
+    });
+  } catch (error: any) {
     await transaction.rollback();
-    console.error('Error al registrar recepción:', error);
+    logger.error('Error al registrar recepción OC', { error: error.message });
     res.status(500).json({ error: 'Error al registrar recepción' });
   }
 });

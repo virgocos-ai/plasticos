@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import RegimenFiscal from '../models/RegimenFiscal';
 
@@ -12,7 +13,7 @@ router.get('/', async (req, res) => {
     });
     res.json(regimenes);
   } catch (error) {
-    console.error('Error al obtener regímenes fiscales:', error);
+    logger.error('Error al obtener regímenes fiscales:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener regímenes fiscales' });
   }
 });
@@ -25,7 +26,7 @@ router.get('/all', async (req, res) => {
     });
     res.json(regimenes);
   } catch (error) {
-    console.error('Error al obtener regímenes fiscales:', error);
+    logger.error('Error al obtener regímenes fiscales:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener regímenes fiscales' });
   }
 });
@@ -39,7 +40,7 @@ router.get('/:id', async (req, res) => {
     }
     res.json(regimen);
   } catch (error) {
-    console.error('Error al obtener régimen fiscal:', error);
+    logger.error('Error al obtener régimen fiscal:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener régimen fiscal' });
   }
 });
@@ -72,7 +73,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(regimen);
   } catch (error) {
-    console.error('Error al crear régimen fiscal:', error);
+    logger.error('Error al crear régimen fiscal:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear régimen fiscal' });
   }
 });
@@ -103,7 +104,7 @@ router.put('/:id', async (req, res) => {
 
     res.json(regimen);
   } catch (error) {
-    console.error('Error al actualizar régimen fiscal:', error);
+    logger.error('Error al actualizar régimen fiscal:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al actualizar régimen fiscal' });
   }
 });
@@ -120,7 +121,7 @@ router.delete('/:id', async (req, res) => {
     await regimen.update({ activo: false });
     res.json({ message: 'Régimen fiscal eliminado correctamente' });
   } catch (error) {
-    console.error('Error al eliminar régimen fiscal:', error);
+    logger.error('Error al eliminar régimen fiscal:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al eliminar régimen fiscal' });
   }
 });
@@ -172,7 +173,7 @@ router.post('/seed', async (req, res) => {
       total: catalogoSAT.length,
     });
   } catch (error) {
-    console.error('Error al cargar catálogo:', error);
+    logger.error('Error al cargar catálogo:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al cargar catálogo del SAT' });
   }
 });

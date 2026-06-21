@@ -3,6 +3,7 @@ import { Plus, Search, Edit2, Trash2, UserCheck, Clock } from 'lucide-react'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface Operador {
   id: number
@@ -24,10 +25,10 @@ interface Operador {
 
 export default function Operadores() {
   const [operadores, setOperadores] = useState<Operador[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingOperador, setEditingOperador] = useState<Operador | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
   const [formData, setFormData] = useState<Partial<Operador>>({
     turno: 'matutino',
     estado: 'activo'
@@ -43,8 +44,6 @@ export default function Operadores() {
       setOperadores(response.data)
     } catch (error) {
       toast.error('Error al cargar operadores')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -68,23 +67,14 @@ export default function Operadores() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar este operador?')) return
     try {
       await api.delete(`/operadores/${id}`)
       toast.success('Operador eliminado')
       loadOperadores()
     } catch (error) {
       toast.error('Error al eliminar operador')
-    }
-  }
-
-  const handleCambiarEstado = async (id: number, estado: string) => {
-    try {
-      await api.put(`/operadores/${id}/estado`, { estado })
-      toast.success('Estado actualizado')
-      loadOperadores()
-    } catch (error) {
-      toast.error('Error al cambiar estado')
+    } finally {
+      setConfirmDelete(null)
     }
   }
 
@@ -180,7 +170,7 @@ export default function Operadores() {
                   <button onClick={() => openEditModal(operador)} className="text-blue-600 hover:text-blue-900 mr-2">
                     <Edit2 className="h-4 w-4" />
                   </button>
-                  <button onClick={() => handleDelete(operador.id)} className="text-red-600 hover:text-red-900">
+                  <button onClick={() => setConfirmDelete(operador.id)} className="text-red-600 hover:text-red-900">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </td>
@@ -190,6 +180,15 @@ export default function Operadores() {
         </table>
       </div>
 
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete !== null && handleDelete(confirmDelete)}
+        title="Eliminar operador"
+        message="¿Estás seguro de eliminar este operador? Se perderá toda la información asociada."
+        confirmText="Eliminar"
+        type="danger"
+      />
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingOperador ? 'Editar Operador' : 'Nuevo Operador'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

@@ -4,27 +4,33 @@ import { Factura, FacturaDetalle, Cliente } from '../models';
 
 const router = Router();
 
-// Listar facturas
+// Listar facturas (con paginación y búsqueda)
 router.get('/', async (req, res) => {
   try {
-    const { estado, cliente_id, fecha_inicio, fecha_fin } = req.query;
+    const { estado, cliente_id, fecha_inicio, fecha_fin, search, page, limit } = req.query;
     const where: any = {};
-    
+
     if (estado) where.estado = estado;
     if (cliente_id) where.cliente_id = cliente_id;
     if (fecha_inicio && fecha_fin) {
       where.fecha_emision = { [Op.between]: [fecha_inicio, fecha_fin] };
     }
 
-    const facturas = await Factura.findAll({
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 50;
+
+    const { count, rows: facturas } = await Factura.findAndCountAll({
       where,
-      include: [
-        { model: Cliente, as: 'cliente', attributes: ['razon_social', 'rfc'] }
-      ],
-      order: [['fecha_emision', 'DESC']]
+      include: [{ model: Cliente, as: 'cliente', attributes: ['razon_social', 'rfc'],
+        ...(search ? { where: { razon_social: { [Op.like]: `%${search}%` } }, required: false } : { required: false })
+      }],
+      order: [['fecha_emision', 'DESC']],
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+      distinct: true
     });
-    
-    res.json(facturas);
+
+    res.json({ data: facturas, total: count, page: pageNum, limit: limitNum, totalPages: Math.ceil(count / limitNum) });
   } catch (error) {
     console.error('Error al obtener facturas:', error);
     res.status(500).json({ error: 'Error al obtener facturas' });

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2, Wrench, CheckCircle, AlertTriangle } from 'lucide-react'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface Maquina {
   id: number
@@ -21,11 +23,12 @@ interface Maquina {
 }
 
 export default function Maquinas() {
+  const navigate = useNavigate()
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingMaquina, setEditingMaquina] = useState<Maquina | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
   const [formData, setFormData] = useState<Partial<Maquina>>({
     estado: 'activa'
   })
@@ -40,8 +43,6 @@ export default function Maquinas() {
       setMaquinas(response.data)
     } catch (error) {
       toast.error('Error al cargar máquinas')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -65,24 +66,21 @@ export default function Maquinas() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar esta máquina?')) return
     try {
       await api.delete(`/maquinas/${id}`)
       toast.success('Máquina eliminada')
       loadMaquinas()
     } catch (error) {
       toast.error('Error al eliminar máquina')
+    } finally {
+      setConfirmDelete(null)
     }
   }
 
-  const handleMantenimiento = async (id: number) => {
-    try {
-      await api.post(`/maquinas/${id}/mantenimiento`, { fecha: new Date().toISOString().split('T')[0] })
-      toast.success('Mantenimiento registrado')
-      loadMaquinas()
-    } catch (error) {
-      toast.error('Error al registrar mantenimiento')
-    }
+  const handleMantenimiento = (maquina: Maquina) => {
+    navigate('/mantenimiento', {
+      state: { entidad_tipo: 'maquina', entidad_id: maquina.id, entidad_nombre: maquina.nombre }
+    })
   }
 
   const openEditModal = (maquina: Maquina) => {
@@ -168,10 +166,10 @@ export default function Maquinas() {
                   <button onClick={() => openEditModal(maquina)} className="text-blue-600 hover:text-blue-900 mr-2">
                     <Edit2 className="h-4 w-4" />
                   </button>
-                  <button onClick={() => handleMantenimiento(maquina.id)} className="text-green-600 hover:text-green-900 mr-2" title="Registrar mantenimiento">
+                  <button onClick={() => handleMantenimiento(maquina)} className="text-green-600 hover:text-green-900 mr-2" title="Registrar mantenimiento">
                     <Wrench className="h-4 w-4" />
                   </button>
-                  <button onClick={() => handleDelete(maquina.id)} className="text-red-600 hover:text-red-900">
+                  <button onClick={() => setConfirmDelete(maquina.id)} className="text-red-600 hover:text-red-900">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </td>
@@ -180,6 +178,16 @@ export default function Maquinas() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete !== null && handleDelete(confirmDelete)}
+        title="Eliminar máquina"
+        message="¿Estás seguro de eliminar esta máquina? Se perderá toda la información asociada."
+        confirmText="Eliminar"
+        type="danger"
+      />
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingMaquina ? 'Editar Máquina' : 'Nueva Máquina'}>
         <form onSubmit={handleSubmit} className="space-y-4">

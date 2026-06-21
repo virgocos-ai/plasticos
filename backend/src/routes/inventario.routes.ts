@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { InventarioMovimiento, Producto, Material } from '../models';
@@ -20,7 +21,7 @@ router.get('/productos', async (req, res) => {
     
     res.json(productos);
   } catch (error) {
-    console.error('Error al obtener inventario de productos:', error);
+    logger.error('Error al obtener inventario de productos:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener inventario' });
   }
 });
@@ -40,7 +41,7 @@ router.get('/materiales', async (req, res) => {
     
     res.json(materiales);
   } catch (error) {
-    console.error('Error al obtener inventario de materiales:', error);
+    logger.error('Error al obtener inventario de materiales:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener inventario' });
   }
 });
@@ -70,7 +71,7 @@ router.get('/movimientos', async (req, res) => {
     
     res.json(movimientos);
   } catch (error) {
-    console.error('Error al obtener movimientos:', error);
+    logger.error('Error al obtener movimientos:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener movimientos' });
   }
 });
@@ -116,7 +117,7 @@ router.post('/movimientos', async (req, res) => {
     res.status(201).json(movimiento);
   } catch (error) {
     await transaction.rollback();
-    console.error('Error al crear movimiento:', error);
+    logger.error('Error al crear movimiento:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear movimiento de inventario' });
   }
 });
@@ -146,7 +147,7 @@ router.get('/alertas', async (req, res) => {
       total_alertas: productosBajos.length + materialesBajos.length
     });
   } catch (error) {
-    console.error('Error al obtener alertas:', error);
+    logger.error('Error al obtener alertas:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener alertas de inventario' });
   }
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, FileCheck, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
@@ -21,8 +22,10 @@ interface Inspeccion {
 
 export default function Calidad() {
   const [inspecciones, setInspecciones] = useState<Inspeccion[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [estadisticas, setEstadisticas] = useState<any>(null)
   const [formData, setFormData] = useState({
     producto_id: '',
@@ -44,9 +47,11 @@ export default function Calidad() {
   const loadInspecciones = async () => {
     try {
       const response = await api.get('/calidad')
-      setInspecciones(response.data)
+      setInspecciones(response.data.data ?? response.data)
     } catch (error) {
       toast.error('Error al cargar inspecciones')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -61,6 +66,7 @@ export default function Calidad() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSaving(true)
     try {
       await api.post('/calidad', formData)
       toast.success('Inspección registrada')
@@ -68,8 +74,10 @@ export default function Calidad() {
       resetForm()
       loadInspecciones()
       loadEstadisticas()
-    } catch (error) {
-      toast.error('Error al registrar inspección')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Error al registrar inspección')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -132,6 +140,8 @@ export default function Calidad() {
     i.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
     i.producto?.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  if (loading) return <SkeletonTable rows={5} cols={6} />
 
   return (
     <div className="space-y-4">
@@ -320,7 +330,9 @@ export default function Calidad() {
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">Cancelar</button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Guardar Inspección</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed">
+              {saving ? 'Guardando...' : 'Guardar Inspección'}
+            </button>
           </div>
         </form>
       </Modal>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 import { REGIMENES_FISCALES } from '../constants/satCatalogs'
@@ -19,6 +20,7 @@ interface Cliente {
 export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null)
@@ -41,14 +43,12 @@ export default function Clientes() {
     dias_credito: 0
   })
 
-  useEffect(() => {
-    loadClientes()
-  }, [])
-
-  const loadClientes = async () => {
+  const loadClientes = async (search = '') => {
     try {
-      const response = await api.get('/clientes')
-      setClientes(response.data)
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      const response = await api.get(`/clientes?${params}`)
+      setClientes(response.data.data ?? response.data)
     } catch (error) {
       toast.error('Error al cargar clientes')
     } finally {
@@ -56,8 +56,14 @@ export default function Clientes() {
     }
   }
 
+  useEffect(() => {
+    const timer = setTimeout(() => loadClientes(searchTerm), 350)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSaving(true)
     try {
       if (editingCliente) {
         await api.put(`/clientes/${editingCliente.id}`, formData)
@@ -68,9 +74,11 @@ export default function Clientes() {
       }
       setShowForm(false)
       setEditingCliente(null)
-      loadClientes()
-    } catch (error) {
-      toast.error('Error al guardar cliente')
+      loadClientes(searchTerm)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Error al guardar cliente')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -108,10 +116,9 @@ export default function Clientes() {
     }
   }
 
-  const filteredClientes = clientes.filter(c => 
-    c.razon_social.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.rfc.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredClientes = clientes
+
+  if (loading && clientes.length === 0) return <SkeletonTable rows={6} cols={5} />
 
   if (showForm) {
     return (
@@ -249,9 +256,10 @@ export default function Clientes() {
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              disabled={saving}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Guardar
+              {saving ? 'Guardando...' : 'Guardar'}
             </button>
             <button
               type="button"

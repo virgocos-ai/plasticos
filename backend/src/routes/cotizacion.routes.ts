@@ -5,27 +5,34 @@ import sequelize from '../config/database';
 
 const router = Router();
 
-// Listar cotizaciones
+// Listar cotizaciones (con paginación y búsqueda)
 router.get('/', async (req, res) => {
   try {
-    const { estado, cliente_id, fecha_inicio, fecha_fin } = req.query;
+    const { estado, cliente_id, fecha_inicio, fecha_fin, search, page, limit } = req.query;
     const where: any = {};
-    
+
     if (estado) where.estado = estado;
     if (cliente_id) where.cliente_id = cliente_id;
     if (fecha_inicio && fecha_fin) {
       where.fecha_cotizacion = { [Op.between]: [fecha_inicio, fecha_fin] };
     }
+    if (search) {
+      where[Op.or] = [{ folio: { [Op.like]: `%${search}%` } }];
+    }
 
-    const cotizaciones = await Cotizacion.findAll({
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 50;
+
+    const { count, rows: cotizaciones } = await Cotizacion.findAndCountAll({
       where,
-      include: [
-        { model: Cliente, as: 'cliente', attributes: ['razon_social', 'rfc'] }
-      ],
-      order: [['fecha_cotizacion', 'DESC']]
+      include: [{ model: Cliente, as: 'cliente', attributes: ['razon_social', 'rfc'], required: false }],
+      order: [['fecha_cotizacion', 'DESC']],
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+      distinct: true
     });
-    
-    res.json(cotizaciones);
+
+    res.json({ data: cotizaciones, total: count, page: pageNum, limit: limitNum, totalPages: Math.ceil(count / limitNum) });
   } catch (error) {
     console.error('Error al obtener cotizaciones:', error);
     res.status(500).json({ error: 'Error al obtener cotizaciones' });
@@ -222,7 +229,11 @@ router.post('/:id/convertir', async (req, res) => {
 
     // Crear orden de producción
     const { fecha_entrega, maquina_asignada, turno, observaciones } = req.body;
-    const usuario_id = (req as any).user?.id || 1;
+    const usuario_id = (req as any).user?.id;
+    if (!usuario_id) {
+      await transaction.rollback();
+      return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
 
     const orden = await OrdenProduccion.create({
       folio,
@@ -232,7 +243,7 @@ router.post('/:id/convertir', async (req, res) => {
       maquina_asignada: maquina_asignada || null,
       turno: turno || 'matutino',
       estado: 'pendiente',
-      prioridad: 'normal',
+      prioridad: 'media',
       observaciones: observaciones || `Generada desde cotización ${cotizacion.folio}`,
       usuario_id
     } as any, { transaction });

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { Producto, Material } from '../models';
 
@@ -19,7 +20,7 @@ router.get('/', async (req, res) => {
     });
     res.json(productos);
   } catch (error) {
-    console.error('Error al obtener productos:', error);
+    logger.error('Error al obtener productos:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener productos' });
   }
 });
@@ -37,7 +38,7 @@ router.get('/:id', async (req, res) => {
     }
     res.json(producto);
   } catch (error) {
-    console.error('Error al obtener producto:', error);
+    logger.error('Error al obtener producto:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener producto' });
   }
 });
@@ -58,7 +59,7 @@ router.post('/', async (req, res) => {
     const producto = await Producto.create(productoData);
     res.status(201).json(producto);
   } catch (error) {
-    console.error('Error al crear producto:', error);
+    logger.error('Error al crear producto:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear producto' });
   }
 });
@@ -74,7 +75,7 @@ router.put('/:id', async (req, res) => {
     await producto.update(req.body);
     res.json(producto);
   } catch (error) {
-    console.error('Error al actualizar producto:', error);
+    logger.error('Error al actualizar producto:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al actualizar producto' });
   }
 });
@@ -90,7 +91,7 @@ router.delete('/:id', async (req, res) => {
     await producto.update({ activo: false });
     res.json({ message: 'Producto eliminado correctamente' });
   } catch (error) {
-    console.error('Error al eliminar producto:', error);
+    logger.error('Error al eliminar producto:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al eliminar producto' });
   }
 });

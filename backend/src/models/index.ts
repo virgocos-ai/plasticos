@@ -22,6 +22,12 @@ import CotizacionDetalle from './CotizacionDetalle';
 import OrdenCompra from './OrdenCompra';
 import OrdenCompraDetalle from './OrdenCompraDetalle';
 import InspeccionCalidad from './InspeccionCalidad';
+import Molde from './Molde';
+import RecetaInyeccion from './RecetaInyeccion';
+import MantenimientoRegistro from './MantenimientoRegistro';
+import Transportista from './Transportista';
+import Envio from './Envio';
+import EnvioDetalle from './EnvioDetalle';
 
 // Asociaciones
 // Usuario - Ordenes de producción
@@ -92,8 +98,12 @@ Lote.belongsTo(OrdenProduccion, { foreignKey: 'orden_produccion_id', as: 'ordenP
 Usuario.hasMany(Lote, { foreignKey: 'usuario_id', as: 'lotes' });
 Lote.belongsTo(Usuario, { foreignKey: 'usuario_id', as: 'usuario' });
 
+// Cliente - OrdenProduccion
+Cliente.hasMany(OrdenProduccion, { foreignKey: 'cliente_id', as: 'ordenesProduccion' });
+OrdenProduccion.belongsTo(Cliente, { foreignKey: 'cliente_id', as: 'cliente' });
+
 // Maquina - OrdenProduccion
-Maquina.hasMany(OrdenProduccion, { foreignKey: 'maquina_id', as: 'ordenesProduccion' });
+Maquina.hasMany(OrdenProduccion, { foreignKey: 'maquina_id', as: 'ordenesMaquina' });
 OrdenProduccion.belongsTo(Maquina, { foreignKey: 'maquina_id', as: 'maquina' });
 
 // Operador - OrdenProduccion
@@ -148,6 +158,45 @@ InspeccionCalidad.belongsTo(Lote, { foreignKey: 'lote_id', as: 'lote' });
 Usuario.hasMany(InspeccionCalidad, { foreignKey: 'inspector_id', as: 'inspeccionesRealizadas' });
 InspeccionCalidad.belongsTo(Usuario, { foreignKey: 'inspector_id', as: 'inspector' });
 
+// ── Moldes ──────────────────────────────────────────────────────────────────
+Producto.hasMany(Molde, { foreignKey: 'producto_id', as: 'moldes' });
+Molde.belongsTo(Producto, { foreignKey: 'producto_id', as: 'producto' });
+
+Maquina.hasMany(Molde, { foreignKey: 'maquina_id', as: 'moldesMontados' });
+Molde.belongsTo(Maquina, { foreignKey: 'maquina_id', as: 'maquina' });
+
+// ── Recetas de Inyección ─────────────────────────────────────────────────────
+Producto.hasMany(RecetaInyeccion, { foreignKey: 'producto_id', as: 'recetas' });
+RecetaInyeccion.belongsTo(Producto, { foreignKey: 'producto_id', as: 'producto' });
+
+Material.hasMany(RecetaInyeccion, { foreignKey: 'material_id', as: 'recetas' });
+RecetaInyeccion.belongsTo(Material, { foreignKey: 'material_id', as: 'material' });
+
+Molde.hasMany(RecetaInyeccion, { foreignKey: 'molde_id', as: 'recetas' });
+RecetaInyeccion.belongsTo(Molde, { foreignKey: 'molde_id', as: 'molde' });
+
+Maquina.hasMany(RecetaInyeccion, { foreignKey: 'maquina_id', as: 'recetas' });
+RecetaInyeccion.belongsTo(Maquina, { foreignKey: 'maquina_id', as: 'maquina' });
+
+// ── Logística ────────────────────────────────────────────────────────────────
+Cliente.hasMany(Envio, { foreignKey: 'cliente_id', as: 'envios' });
+Envio.belongsTo(Cliente, { foreignKey: 'cliente_id', as: 'cliente' });
+
+Transportista.hasMany(Envio, { foreignKey: 'transportista_id', as: 'envios' });
+Envio.belongsTo(Transportista, { foreignKey: 'transportista_id', as: 'transportista' });
+
+Factura.hasMany(Envio, { foreignKey: 'factura_id', as: 'envios' });
+Envio.belongsTo(Factura, { foreignKey: 'factura_id', as: 'factura' });
+
+Envio.hasMany(EnvioDetalle, { foreignKey: 'envio_id', as: 'detalles' });
+EnvioDetalle.belongsTo(Envio, { foreignKey: 'envio_id', as: 'envio' });
+
+Producto.hasMany(EnvioDetalle, { foreignKey: 'producto_id', as: 'enviosDetalle' });
+EnvioDetalle.belongsTo(Producto, { foreignKey: 'producto_id', as: 'producto' });
+
+Lote.hasMany(EnvioDetalle, { foreignKey: 'lote_id', as: 'enviosDetalle' });
+EnvioDetalle.belongsTo(Lote, { foreignKey: 'lote_id', as: 'lote' });
+
 export {
   sequelize,
   Usuario,
@@ -172,5 +221,11 @@ export {
   CotizacionDetalle,
   OrdenCompra,
   OrdenCompraDetalle,
-  InspeccionCalidad
+  InspeccionCalidad,
+  Molde,
+  RecetaInyeccion,
+  MantenimientoRegistro,
+  Transportista,
+  Envio,
+  EnvioDetalle,
 };

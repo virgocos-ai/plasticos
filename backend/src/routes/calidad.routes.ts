@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { Router } from 'express';
 import { Op } from 'sequelize';
 import { InspeccionCalidad, Producto, OrdenProduccion, Lote, Usuario } from '../models';
@@ -30,7 +31,7 @@ router.get('/', async (req, res) => {
     
     res.json(inspecciones);
   } catch (error) {
-    console.error('Error al obtener inspecciones:', error);
+    logger.error('Error al obtener inspecciones:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener inspecciones' });
   }
 });
@@ -53,7 +54,7 @@ router.get('/:id', async (req, res) => {
     
     res.json(inspeccion);
   } catch (error) {
-    console.error('Error al obtener inspección:', error);
+    logger.error('Error al obtener inspección:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener inspección' });
   }
 });
@@ -92,7 +93,7 @@ router.post('/', async (req, res) => {
     
     res.status(201).json(inspeccion);
   } catch (error) {
-    console.error('Error al crear inspección:', error);
+    logger.error('Error al crear inspección:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al crear inspección' });
   }
 });
@@ -119,7 +120,7 @@ router.put('/:id', async (req, res) => {
     await inspeccion.update(req.body);
     res.json(inspeccion);
   } catch (error) {
-    console.error('Error al actualizar inspección:', error);
+    logger.error('Error al actualizar inspección:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al actualizar inspección' });
   }
 });
@@ -137,7 +138,7 @@ router.put('/:id/resultado', async (req, res) => {
     await inspeccion.update({ resultado });
     res.json(inspeccion);
   } catch (error) {
-    console.error('Error al cambiar resultado:', error);
+    logger.error('Error al cambiar resultado:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al cambiar resultado' });
   }
 });
@@ -173,7 +174,7 @@ router.post('/:id/certificado', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error al generar certificado:', error);
+    logger.error('Error al generar certificado:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al generar certificado' });
   }
 });
@@ -209,7 +210,7 @@ router.get('/estadisticas/resumen', async (req, res) => {
       porcentaje_defectos_global: totalInspeccionada > 0 ? ((totalDefectuosa / totalInspeccionada) * 100).toFixed(2) : 0
     });
   } catch (error) {
-    console.error('Error al obtener estadísticas:', error);
+    logger.error('Error al obtener estadísticas:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al obtener estadísticas' });
   }
 });
@@ -226,7 +227,7 @@ router.delete('/:id', async (req, res) => {
     await inspeccion.destroy();
     res.json({ message: 'Inspección eliminada correctamente' });
   } catch (error) {
-    console.error('Error al eliminar inspección:', error);
+    logger.error('Error al eliminar inspección:', { error: (error as Error).message });
     res.status(500).json({ error: 'Error al eliminar inspección' });
   }
 });

@@ -10,6 +10,8 @@ interface OrdenProduccionAttributes {
   prioridad: 'baja' | 'media' | 'alta' | 'urgente';
   estado: 'pendiente' | 'en_produccion' | 'completada' | 'cancelada';
   maquina_asignada?: string;
+  maquina_id?: number;
+  cotizacion_id?: number;
   turno: 'matutino' | 'vespertino' | 'nocturno';
   operador_id?: number;
   observaciones?: string;
@@ -29,6 +31,8 @@ class OrdenProduccion extends Model<OrdenProduccionAttributes> implements OrdenP
   public prioridad!: 'baja' | 'media' | 'alta' | 'urgente';
   public estado!: 'pendiente' | 'en_produccion' | 'completada' | 'cancelada';
   public maquina_asignada!: string;
+  public maquina_id!: number;
+  public cotizacion_id!: number;
   public turno!: 'matutino' | 'vespertino' | 'nocturno';
   public operador_id!: number;
   public observaciones!: string;
@@ -71,6 +75,14 @@ OrdenProduccion.init(
     maquina_asignada: {
       type: DataTypes.STRING(20),
       comment: 'Máquina de inyección asignada (ej: INY-01, INY-02)'
+    },
+    maquina_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    cotizacion_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     },
     turno: {
       type: DataTypes.ENUM('matutino', 'vespertino', 'nocturno'),

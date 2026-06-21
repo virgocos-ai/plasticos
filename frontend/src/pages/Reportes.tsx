@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
-import { BarChart as BarChartIcon, Download, TrendingUp, Factory, Package, RefreshCw, DollarSign, ShoppingBag } from 'lucide-react'
+import { BarChart as BarChartIcon, Download, TrendingUp, Factory, Package, RefreshCw, DollarSign, ShoppingBag, FileSpreadsheet } from 'lucide-react'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
+import * as XLSX from 'xlsx'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell
 } from 'recharts'
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
+const COLORS: string[] = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
 
 const fmt = (n: number) => `$${(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
 
-function exportCSV(filename: string, headers: string[], rows: any[][], keys: string[]) {
+function exportCSV(filename: string, headers: string[], rows: Record<string, unknown>[], keys: string[]) {
   const csvHeaders = headers.join(',')
   const csvRows = rows.map(row => keys.map(k => `"${row[k] ?? ''}"`).join(','))
   const csv = [csvHeaders, ...csvRows].join('\n')
@@ -23,6 +24,7 @@ function exportCSV(filename: string, headers: string[], rows: any[][], keys: str
   a.click()
   URL.revokeObjectURL(url)
 }
+
 
 export default function Reportes() {
   const [ventasData, setVentasData] = useState<any[]>([])
@@ -88,6 +90,44 @@ export default function Reportes() {
     toast.success('Archivo descargado')
   }
 
+  const handleExportExcel = () => {
+    if (!ventasData.length && !produccionData.length && !topProductos.length) {
+      toast.error('No hay datos para exportar')
+      return
+    }
+    const wb = XLSX.utils.book_new()
+
+    if (ventasData.length) {
+      const wsVentas = XLSX.utils.aoa_to_sheet([
+        ['Período', 'Facturas', 'Subtotal', 'IVA', 'Total'],
+        ...ventasData.map((r: any) => [r.periodo, r.total_facturas, r.subtotal, r.iva, r.total])
+      ])
+      wsVentas['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }]
+      XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas')
+    }
+
+    if (produccionData.length) {
+      const wsProd = XLSX.utils.aoa_to_sheet([
+        ['Folio', 'Fecha', 'Cliente', 'Producto', 'Material', 'Máquina', 'Solicitada', 'Producida', 'Defectuosa', 'Estado'],
+        ...produccionData.map((r: any) => [r.folio, r.fecha_orden, r.cliente, r.producto, r.material, r.maquina_asignada, r.cantidad_solicitada, r.cantidad_producida, r.cantidad_defectuosa, r.estado])
+      ])
+      wsProd['!cols'] = [10, 12, 20, 20, 20, 16, 10, 10, 10, 12].map(wch => ({ wch }))
+      XLSX.utils.book_append_sheet(wb, wsProd, 'Producción')
+    }
+
+    if (topProductos.length) {
+      const wsTop = XLSX.utils.aoa_to_sheet([
+        ['Código', 'Producto', 'Cantidad Vendida', 'Total Ventas'],
+        ...topProductos.map((r: any) => [r.codigo, r.nombre, r.cantidad_vendida, r.total_ventas])
+      ])
+      wsTop['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 16 }, { wch: 16 }]
+      XLSX.utils.book_append_sheet(wb, wsTop, 'Top Productos')
+    }
+
+    XLSX.writeFile(wb, `reporte_erp_${fechaInicio}_${fechaFin}.xlsx`)
+    toast.success('Excel generado correctamente')
+  }
+
   // Agrupar producción por máquina para gráfica de eficiencia
   const eficienciaMaquina = produccionData.reduce((acc: any[], row: any) => {
     const maq = row.maquina_asignada || 'Sin máquina'
@@ -123,6 +163,9 @@ export default function Reportes() {
             className="border border-gray-300 rounded-md px-3 py-2 text-sm" />
           <button onClick={loadReportes} className="flex items-center gap-1.5 border border-gray-300 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+          </button>
+          <button onClick={handleExportExcel} className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-2 rounded-md text-sm hover:bg-emerald-700">
+            <FileSpreadsheet className="h-4 w-4" /> Exportar Excel
           </button>
         </div>
       </div>

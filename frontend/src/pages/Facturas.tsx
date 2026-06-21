@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, FileText, Send, XCircle, X, Trash2 } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
 
@@ -45,21 +46,27 @@ export default function Facturas() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
 
-  useEffect(() => { loadFacturas(); loadCatalogos() }, [])
+  useEffect(() => { loadCatalogos() }, [])
+  useEffect(() => {
+    const timer = setTimeout(() => loadFacturas(search), 350)
+    return () => clearTimeout(timer)
+  }, [search])
 
-  const loadFacturas = async () => {
+  const loadFacturas = async (q = '') => {
     try {
-      const r = await api.get('/facturas')
-      setFacturas(r.data)
+      const params = new URLSearchParams()
+      if (q) params.set('search', q)
+      const r = await api.get(`/facturas?${params}`)
+      setFacturas(r.data.data ?? r.data)
     } catch { toast.error('Error al cargar facturas') }
     finally { setLoading(false) }
   }
 
   const loadCatalogos = async () => {
     try {
-      const [c, p] = await Promise.all([api.get('/clientes?activo=1'), api.get('/productos?activo=1')])
-      setClientes(c.data)
-      setProductos(p.data)
+      const [c, p] = await Promise.all([api.get('/clientes'), api.get('/productos?activo=1')])
+      setClientes(c.data.data ?? c.data)
+      setProductos(p.data.data ?? p.data)
     } catch { /* silencioso */ }
   }
 
@@ -160,6 +167,8 @@ export default function Facturas() {
   const filtered = facturas.filter(f =>
     !search || `${f.serie}-${f.folio}`.includes(search) || f.cliente?.razon_social?.toLowerCase().includes(search.toLowerCase()) || f.uuid?.includes(search)
   )
+
+  if (loading) return <SkeletonTable rows={6} cols={6} />
 
   return (
     <div className="space-y-4">

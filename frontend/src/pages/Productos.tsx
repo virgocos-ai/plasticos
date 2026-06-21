@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Package, Factory } from 'lucide-react'
+import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
 import toast from 'react-hot-toast'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface Producto {
   id: number
@@ -26,14 +28,23 @@ interface Producto {
 export default function Productos() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null)
-  const [formData, setFormData] = useState({
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [formData, setFormData] = useState<{
+    codigo: string; nombre: string; descripcion: string
+    tipo: Producto['tipo']; unidad_medida: string
+    peso_gr: number; ciclo_inyeccion_seg: number; cavidades_molde: number
+    costo_material_unitario: number; costo_mano_obra_unitario: number
+    costo_energia_unitario: number; precio_venta: number
+    stock_minimo: number; stock_maximo: number
+  }>({
     codigo: '',
     nombre: '',
     descripcion: '',
-    tipo: 'producto_terminado' as const,
+    tipo: 'producto_terminado',
     unidad_medida: 'PZ',
     peso_gr: 0,
     ciclo_inyeccion_seg: 0,
@@ -47,13 +58,15 @@ export default function Productos() {
   })
 
   useEffect(() => {
-    loadProductos()
-  }, [])
+    const timer = setTimeout(() => loadProductos(searchTerm), 350)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
-  const loadProductos = async () => {
+  const loadProductos = async (search = '') => {
     try {
-      const response = await api.get('/productos')
-      setProductos(response.data)
+      const params = search ? `?search=${encodeURIComponent(search)}` : ''
+      const response = await api.get(`/productos${params}`)
+      setProductos(response.data.data ?? response.data)
     } catch (error) {
       toast.error('Error al cargar productos')
     } finally {
@@ -63,6 +76,7 @@ export default function Productos() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSaving(true)
     try {
       if (editingProducto) {
         await api.put(`/productos/${editingProducto.id}`, formData)
@@ -76,7 +90,9 @@ export default function Productos() {
       resetForm()
       loadProductos()
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Error al guardar producto')
+      toast.error(error?.response?.data?.error || 'Error al guardar producto')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -85,7 +101,7 @@ export default function Productos() {
       codigo: '',
       nombre: '',
       descripcion: '',
-      tipo: 'producto_terminado',
+      tipo: 'producto_terminado' as Producto['tipo'],
       unidad_medida: 'PZ',
       peso_gr: 0,
       ciclo_inyeccion_seg: 0,
@@ -121,13 +137,14 @@ export default function Productos() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar este producto?')) return
     try {
       await api.delete(`/productos/${id}`)
       toast.success('Producto eliminado')
       loadProductos()
     } catch (error) {
       toast.error('Error al eliminar producto')
+    } finally {
+      setConfirmDelete(null)
     }
   }
 
@@ -145,6 +162,8 @@ export default function Productos() {
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.codigo.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  if (loading && productos.length === 0) return <SkeletonTable rows={6} cols={5} />
 
   if (showForm) {
     return (
@@ -369,9 +388,10 @@ export default function Productos() {
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 font-medium"
+              disabled={saving}
+              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {editingProducto ? 'Actualizar Producto' : 'Guardar Producto'}
+              {saving ? 'Guardando...' : editingProducto ? 'Actualizar Producto' : 'Guardar Producto'}
             </button>
             <button
               type="button"
@@ -481,7 +501,7 @@ export default function Productos() {
                       <Edit2 className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(producto.id)}
+                      onClick={() => setConfirmDelete(producto.id)}
                       className="text-red-600 hover:text-red-900"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -493,6 +513,16 @@ export default function Productos() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete !== null && handleDelete(confirmDelete)}
+        title="Eliminar producto"
+        message="¿Estás seguro de eliminar este producto? Se perderán todos los datos asociados."
+        confirmText="Eliminar"
+        type="danger"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
