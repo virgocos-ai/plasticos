@@ -7,6 +7,7 @@ import {
   Layers, ShieldCheck, Timer, Gauge, BarChart2, AlertCircle
 } from 'lucide-react'
 import api from '../lib/api'
+import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -207,7 +208,7 @@ export default function OrdenProduccionDetallePage() {
     setAvanceData(prev => ({ ...prev, [detId]: { ...prev[detId], [field]: value } }))
 
   const handleImprimirPDF = () => {
-    const token = localStorage.getItem('token')
+    const token = useAuthStore.getState().token
     const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/pdf/orden-produccion/${id}`
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Search, Trash2, Send, CheckCircle, XCircle, RefreshCw, Eye, FileText } from 'lucide-react'
 import { SkeletonTable } from '../components/Skeleton'
 import api from '../lib/api'
+import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -206,7 +207,7 @@ export default function Cotizaciones() {
   }
 
   const handleDescargarPDF = (id: number) => {
-    const token = localStorage.getItem('token')
+    const token = useAuthStore.getState().token
     const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/pdf/cotizacion/${id}`
     // Abrimos en nueva pestaña pasando el token como query param (solo para descarga directa)
     const link = document.createElement('a')
