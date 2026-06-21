@@ -79,6 +79,9 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Archivos estáticos (uploads)
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 // Rutas
 // Documentación Swagger
 setupSwagger(app);

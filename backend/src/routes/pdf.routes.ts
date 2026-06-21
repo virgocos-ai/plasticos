@@ -1,7 +1,17 @@
 import { Router } from 'express';
 import PDFDocument from 'pdfkit';
+import path from 'path';
+import fs from 'fs';
 import { Cotizacion, CotizacionDetalle, Cliente, Producto, OrdenProduccion, OrdenProduccionDetalle, Material, Operador, Maquina } from '../models';
+import Configuracion from '../models/Configuracion';
 import logger from '../utils/logger';
+
+async function getEmpresaConfig(): Promise<Record<string, string>> {
+  const configs = await Configuracion.findAll({ where: { grupo: 'empresa' } });
+  const map: Record<string, string> = {};
+  configs.forEach(c => { map[c.clave] = c.valor; });
+  return map;
+}
 
 const router = Router();
 
@@ -42,7 +52,13 @@ function roundRect(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: 
 }
 
 /** Encabezado página - devuelve Y donde continúa el contenido */
-function drawHeader(doc: PDFKit.PDFDocument, docType: string, folio: string, estado?: string): number {
+function drawHeader(
+  doc: PDFKit.PDFDocument,
+  docType: string,
+  folio: string,
+  estado?: string,
+  empresa?: Record<string, string>,
+): number {
   const W = doc.page.width;
 
   // Franja principal
@@ -50,11 +66,23 @@ function drawHeader(doc: PDFKit.PDFDocument, docType: string, folio: string, est
   // Franja de acento izquierda
   doc.rect(0, 0, 6, 80).fill(C.accent);
 
-  // Logo / empresa
-  doc.fillColor(C.white).font('Helvetica-Bold').fontSize(22)
-    .text('PLÁSTICOS ERP', 26, 16);
-  doc.fillColor('#93c5fd').font('Helvetica').fontSize(9)
-    .text('Sistema de Gestión de Producción', 26, 42);
+  // Logo de la empresa (si existe) o texto
+  const logoPath = path.join(__dirname, '../../public/uploads/empresa-logo.png');
+  if (empresa?.EMPRESA_LOGO && fs.existsSync(logoPath)) {
+    try {
+      doc.image(logoPath, 16, 8, { height: 64, fit: [120, 64] });
+    } catch {
+      // Fallback a texto si la imagen falla
+      doc.fillColor(C.white).font('Helvetica-Bold').fontSize(18)
+        .text(empresa?.EMPRESA_RAZON_SOCIAL || 'PLÁSTICOS ERP', 26, 20);
+    }
+  } else {
+    const nombre = empresa?.EMPRESA_RAZON_SOCIAL || 'PLÁSTICOS ERP';
+    doc.fillColor(C.white).font('Helvetica-Bold').fontSize(nombre.length > 20 ? 13 : 18)
+      .text(nombre, 26, nombre.length > 20 ? 20 : 16, { width: 280 });
+    doc.fillColor('#93c5fd').font('Helvetica').fontSize(9)
+      .text('Sistema de Gestión de Producción', 26, nombre.length > 20 ? 50 : 42);
+  }
 
   // Folio badge (derecha)
   const folioW = 160;
@@ -109,16 +137,17 @@ function infoCell(doc: PDFKit.PDFDocument, x: number, y: number, w: number, labe
 }
 
 /** Pie de página */
-function drawFooter(doc: PDFKit.PDFDocument, page = 1) {
+function drawFooter(doc: PDFKit.PDFDocument, page = 1, empresa?: Record<string, string>) {
   const W = doc.page.width;
   const H = doc.page.height;
   const y = H - 36;
+  const nombre = empresa?.EMPRESA_RAZON_SOCIAL || 'PLÁSTICOS ERP';
 
   doc.rect(0, y, W, 36).fill('#f8fafc');
   doc.moveTo(30, y).lineTo(W - 30, y).strokeColor(C.border).lineWidth(0.5).stroke();
 
   doc.fillColor(C.muted).font('Helvetica').fontSize(7.5)
-    .text('PLÁSTICOS ERP  •  Sistema de Gestión de Producción', 30, y + 10)
+    .text(`${nombre}  •  Sistema de Gestión de Producción`, 30, y + 10)
     .text(`Generado: ${new Date().toLocaleString('es-MX')}  •  Página ${page}`, W - 220, y + 10);
 }
 
@@ -138,12 +167,13 @@ router.get('/cotizacion/:id', async (req, res) => {
     const cliente = cot.cliente;
     const W = 612; // LETTER
 
+    const empresa = await getEmpresaConfig();
     const doc = new PDFDocument({ margin: 0, size: 'LETTER' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="cotizacion-${cot.folio}.pdf"`);
     doc.pipe(res);
 
-    let y = drawHeader(doc, 'COTIZACIÓN', cot.folio);
+    let y = drawHeader(doc, 'COTIZACIÓN', cot.folio, undefined, empresa);
 
     // ── Info en 3 columnas ──
     const cellW = (W - 75) / 3;
@@ -239,7 +269,7 @@ router.get('/cotizacion/:id', async (req, res) => {
       .text('Elaboró / Asesor Comercial', 50, sigY + 6, { width: sigW, align: 'center' })
       .text('Autorización / Cliente',     W - 50 - sigW, sigY + 6, { width: sigW, align: 'center' });
 
-    drawFooter(doc);
+    drawFooter(doc, 1, empresa);
     doc.end();
   } catch (error: any) {
     logger.error('Error generando PDF cotización', { error: error.message });
@@ -271,12 +301,13 @@ router.get('/orden-produccion/:id', async (req, res) => {
     const W     = 612;
     const detalles: any[] = op.detalles || [];
 
+    const empresa = await getEmpresaConfig();
     const doc = new PDFDocument({ margin: 0, size: 'LETTER' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="op-${op.folio}.pdf"`);
     doc.pipe(res);
 
-    let y = drawHeader(doc, 'ORDEN DE PRODUCCIÓN', op.folio, op.estado);
+    let y = drawHeader(doc, 'ORDEN DE PRODUCCIÓN', op.folio, op.estado, empresa);
 
     // ── Fila 1: Cliente | Fecha Orden | Fecha Entrega ──
     const cW = (W - 75) / 3;
@@ -456,7 +487,7 @@ router.get('/orden-produccion/:id', async (req, res) => {
         .text(label, x, firmaY + 5, { width: sigW, align: 'center' });
     });
 
-    drawFooter(doc);
+    drawFooter(doc, 1, empresa);
     doc.end();
   } catch (error: any) {
     logger.error('Error generando PDF orden de producción', { error: error.message });

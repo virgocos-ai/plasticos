@@ -7,8 +7,9 @@ import {
   UserCog, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen,
   LayoutList, Store, CalendarDays, Layers, FlaskConical, PackageCheck, ClipboardCheck
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
+import api from '../lib/api'
 
 type Rol = 'admin' | 'operador' | 'contador' | 'almacen'
 
@@ -188,8 +189,15 @@ function SidebarNav({ rol, collapsed, onClose }: SidebarNavProps) {
 export default function Layout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [empresaLogo, setEmpresaLogo] = useState<string>('')
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
+
+  useEffect(() => {
+    api.get('/configuracion/EMPRESA_LOGO').then(r => {
+      if (r.data?.valor) setEmpresaLogo(`http://localhost:5000${r.data.valor}`)
+    }).catch(() => {})
+  }, [])
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -211,13 +219,21 @@ export default function Layout() {
         className={`fixed inset-y-0 left-0 z-40 hidden lg:flex flex-col bg-brand-dark border-r border-slate-800 transition-all duration-300 ease-in-out overflow-hidden ${sidebarCollapsed ? 'w-[72px]' : 'w-64'}`}
       >
         {/* Logo */}
-        <div className={`flex h-16 items-center border-b border-slate-800/60 flex-shrink-0 ${sidebarCollapsed ? 'justify-center px-2' : 'px-5'}`}>
+        <div className={`flex h-16 items-center border-b border-slate-800/60 flex-shrink-0 ${sidebarCollapsed ? 'justify-center px-2' : 'px-4'}`}>
           {sidebarCollapsed ? (
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-accent to-blue-800 flex items-center justify-center flex-shrink-0">
-              <Factory className="h-5 w-5 text-white" />
-            </div>
+            empresaLogo ? (
+              <img src={empresaLogo} alt="Logo" className="h-9 w-9 object-contain" />
+            ) : (
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-accent to-blue-800 flex items-center justify-center flex-shrink-0">
+                <Factory className="h-5 w-5 text-white" />
+              </div>
+            )
           ) : (
-            <img src="/logo.svg" alt="Systema Plásticos" className="h-9 w-auto max-w-[180px] brightness-0 invert" />
+            empresaLogo ? (
+              <img src={empresaLogo} alt="Logo empresa" className="h-11 w-auto max-w-[180px] object-contain" />
+            ) : (
+              <img src="/logo.svg" alt="Sistema Plásticos" className="h-9 w-auto max-w-[180px] brightness-0 invert" />
+            )
           )}
         </div>
 
@@ -242,7 +258,10 @@ export default function Layout() {
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-brand-dark border-r border-slate-800 transition-transform duration-300 lg:hidden
         ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-16 items-center justify-between px-4 border-b border-slate-800/50 flex-shrink-0">
-          <img src="/logo.svg" alt="Systema Plásticos" className="h-8 w-auto brightness-0 invert" />
+          {empresaLogo
+            ? <img src={empresaLogo} alt="Logo empresa" className="h-10 w-auto max-w-[160px] object-contain" />
+            : <img src="/logo.svg" alt="Sistema Plásticos" className="h-8 w-auto brightness-0 invert" />
+          }
           <button onClick={() => setMobileSidebarOpen(false)} className="text-slate-400 hover:text-white p-1">
             <X className="h-5 w-5" />
           </button>

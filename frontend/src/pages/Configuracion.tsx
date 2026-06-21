@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Settings, Save, RotateCcw, Building2, FileText, Warehouse,
   Factory, Monitor, CheckCircle, AlertTriangle, XCircle, Loader2,
-  Eye, EyeOff, Hash, AtSign, Phone, MapPin, Percent
+  Eye, EyeOff, Hash, AtSign, Phone, MapPin, Percent, Upload, Trash2, ImageIcon
 } from 'lucide-react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -197,6 +197,9 @@ export default function Configuracion() {
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ empresa: true, facturacion: true });
+  const [logoUrl, setLogoUrl] = useState<string>('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadConfigs();
@@ -216,10 +219,42 @@ export default function Configuracion() {
       });
       setEditedValues(initial);
       setSaveStates({});
+      const logoConfig = res.data.find((c: ConfigItem) => c.clave === 'EMPRESA_LOGO');
+      if (logoConfig?.valor) setLogoUrl(`http://localhost:5000${logoConfig.valor}`);
     } catch (error) {
       toast.error('Error al cargar configuracion');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error('El logo no debe superar 2 MB'); return; }
+    setUploadingLogo(true);
+    try {
+      const form = new FormData();
+      form.append('logo', file);
+      const res = await api.post('/configuracion/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setLogoUrl(`http://localhost:5000${res.data.url}`);
+      toast.success('Logo actualizado correctamente');
+    } catch {
+      toast.error('Error al subir el logo');
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    if (!window.confirm('¿Eliminar el logo de la empresa?')) return;
+    try {
+      await api.delete('/configuracion/logo');
+      setLogoUrl('');
+      toast.success('Logo eliminado');
+    } catch {
+      toast.error('Error al eliminar el logo');
     }
   };
 
@@ -389,6 +424,59 @@ export default function Configuracion() {
           </div>
         </div>
       )}
+
+      {/* Logo de la empresa */}
+      <div className="bg-white rounded-lg shadow-sm border border-l-4 border-l-blue-500 p-4">
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2 mb-4">
+          <ImageIcon className="h-5 w-5 text-gray-600" />
+          Logotipo de la Empresa
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-normal">aparece en PDFs y reportes</span>
+        </h2>
+        <div className="flex items-center gap-6">
+          {/* Preview */}
+          <div className="w-40 h-24 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo empresa" className="max-h-full max-w-full object-contain p-1" />
+            ) : (
+              <div className="text-center text-gray-400">
+                <ImageIcon className="h-8 w-8 mx-auto mb-1 opacity-40" />
+                <p className="text-xs">Sin logo</p>
+              </div>
+            )}
+          </div>
+          {/* Controles */}
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600">Formatos: PNG, JPG, SVG · Máximo 2 MB</p>
+            <p className="text-xs text-gray-400">Recomendado: fondo transparente, mínimo 200×200 px</p>
+            <div className="flex gap-2 mt-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm transition-colors"
+              >
+                {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {uploadingLogo ? 'Subiendo...' : logoUrl ? 'Cambiar logo' : 'Subir logo'}
+              </button>
+              {logoUrl && (
+                <button
+                  onClick={handleLogoDelete}
+                  className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-md hover:bg-red-100 text-sm transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Grupos */}
       <div className="space-y-4">
