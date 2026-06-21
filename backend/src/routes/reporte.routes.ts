@@ -183,20 +183,19 @@ router.get('/inventario', async (req, res) => {
         { type: QueryTypes.SELECT }
       ),
       sequelize.query(
-        `SELECT tipo_movimiento, COUNT(*) AS total,
+        `SELECT tipo, COUNT(*) AS total,
                 SUM(cantidad) AS cantidad_total
          FROM inventario_movimientos
-         GROUP BY tipo_movimiento`,
+         GROUP BY tipo`,
         { type: QueryTypes.SELECT }
       ),
       sequelize.query(
-        `SELECT a.nombre AS almacen,
+        `SELECT COALESCE(im.almacen_destino, im.almacen_origen, 'Sin almacén') AS almacen,
                 COUNT(DISTINCT im.producto_id) AS productos_distintos,
                 SUM(im.cantidad) AS entradas_totales
          FROM inventario_movimientos im
-         JOIN almacenes a ON im.almacen_id = a.id
-         WHERE im.tipo_movimiento = 'entrada'
-         GROUP BY a.id, a.nombre
+         WHERE im.tipo = 'entrada'
+         GROUP BY almacen
          ORDER BY entradas_totales DESC`,
         { type: QueryTypes.SELECT }
       ),
@@ -224,7 +223,7 @@ router.get('/calidad', async (req, res) => {
         `SELECT p.nombre AS producto, COUNT(*) AS total_inspecciones,
                 SUM(CASE WHEN ic.resultado = 'aprobado' THEN 1 ELSE 0 END) AS aprobados,
                 SUM(CASE WHEN ic.resultado = 'rechazado' THEN 1 ELSE 0 END) AS rechazados,
-                SUM(CASE WHEN ic.resultado = 'reproceso' THEN 1 ELSE 0 END) AS reprocesos,
+                SUM(CASE WHEN ic.resultado = 'condicional' THEN 1 ELSE 0 END) AS reprocesos,
                 ROUND(SUM(CASE WHEN ic.resultado = 'aprobado' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS tasa_aprobacion
          FROM inspecciones_calidad ic
          JOIN productos p ON ic.producto_id = p.id
@@ -235,11 +234,11 @@ router.get('/calidad', async (req, res) => {
         { replacements: { fecha_inicio, fecha_fin }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
-        `SELECT tipo_defecto, COUNT(*) AS total
+        `SELECT defectos_encontrados AS tipo_defecto, COUNT(*) AS total
          FROM inspecciones_calidad
          WHERE fecha_inspeccion BETWEEN :fecha_inicio AND :fecha_fin
-           AND tipo_defecto IS NOT NULL
-         GROUP BY tipo_defecto
+           AND defectos_encontrados IS NOT NULL AND defectos_encontrados != ''
+         GROUP BY defectos_encontrados
          ORDER BY total DESC
          LIMIT 8`,
         { replacements: { fecha_inicio, fecha_fin }, type: QueryTypes.SELECT }
@@ -305,7 +304,7 @@ router.get('/logistica', async (req, res) => {
       sequelize.query(
         `SELECT estado, COUNT(*) AS total
          FROM envios
-         WHERE fecha_envio BETWEEN :fecha_inicio AND :fecha_fin
+         WHERE fecha_programada BETWEEN :fecha_inicio AND :fecha_fin
          GROUP BY estado`,
         { replacements: { fecha_inicio, fecha_fin }, type: QueryTypes.SELECT }
       ),
@@ -316,18 +315,18 @@ router.get('/logistica', async (req, res) => {
                 ROUND(SUM(CASE WHEN e.estado = 'entregado' THEN 1 ELSE 0 END) * 100.0 / COUNT(e.id), 1) AS tasa_entrega
          FROM envios e
          JOIN transportistas t ON e.transportista_id = t.id
-         WHERE e.fecha_envio BETWEEN :fecha_inicio AND :fecha_fin
+         WHERE e.fecha_programada BETWEEN :fecha_inicio AND :fecha_fin
          GROUP BY t.id, t.nombre
          ORDER BY total_envios DESC`,
         { replacements: { fecha_inicio, fecha_fin }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
-        `SELECT DATE_FORMAT(fecha_envio, '%Y-%m') AS mes,
+        `SELECT DATE_FORMAT(fecha_programada, '%Y-%m') AS mes,
                 COUNT(*) AS total,
                 SUM(CASE WHEN estado = 'entregado' THEN 1 ELSE 0 END) AS entregados
          FROM envios
-         WHERE fecha_envio BETWEEN :fecha_inicio AND :fecha_fin
-         GROUP BY DATE_FORMAT(fecha_envio, '%Y-%m')
+         WHERE fecha_programada BETWEEN :fecha_inicio AND :fecha_fin
+         GROUP BY DATE_FORMAT(fecha_programada, '%Y-%m')
          ORDER BY mes`,
         { replacements: { fecha_inicio, fecha_fin }, type: QueryTypes.SELECT }
       ),
